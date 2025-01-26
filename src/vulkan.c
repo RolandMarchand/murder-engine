@@ -1,11 +1,11 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "GLFW/glfw3.h"
 #include "stb_ds.h"
 
 #ifdef NDEBUG
@@ -18,15 +18,23 @@ typedef int err;
 /* Must initialize to NULL. To use with stb_ds. */
 typedef const char **vector_str;
 
+typedef struct QueueFamilyIndices {
+	uint32_t graphicsFamily;
+	bool exists;
+} __attribute__((aligned(8))) QueueFamilyIndices;
+
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;
+VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+VkDevice device;
+VkQueue graphicsQueue;
 
 const char *const validationLayers[] = {
 	"VK_LAYER_KHRONOS_validation",
 };
 
 bool checkValidationLayerSupport(void) {
-	uint32_t layerCount;
+	uint32_t layerCount = 0;
 	vkEnumerateInstanceLayerProperties(&layerCount, NULL);
 	VkLayerProperties *availableLayers =
 		malloc(layerCount * sizeof(VkLayerProperties));
@@ -59,12 +67,12 @@ bool checkValidationLayerSupport(void) {
 /* The caller is responsible for calling `arrfree()` on the returned vector*/
 vector_str getRequiredExtensions(void) {
 	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions;
+	const char** glfwExtensions = NULL;
 	/* Freed automatically by GLFW. */
 	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
 	vector_str extensions = NULL;
-	arrsetcap(extensions, glfwExtensionCount + 2);
+	arrsetcap(extensions, glfwExtensionCount);
 	for (uint32_t i = 0; i < glfwExtensionCount; i++) {
 		arrput(extensions, glfwExtensions[i]);
 	}
@@ -85,7 +93,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	(void)messageType;
 	(void)pUserData;
 
-	char *severity;
+	char *severity = "";
 	switch(messageSeverity) {
 	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
 	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
@@ -99,7 +107,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		severity = "Error";
 	}
 
-	char *type;
+	char *type = "";
 	switch(messageType) {
 	case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
 		type = "[general] ";
@@ -111,10 +119,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		type = "[performance] ";
 		break;
 	default:
-		type = "";
+		break;
 	}
 
-	fprintf(stderr, "%s: %s%s\n", severity, type, pCallbackData->pMessage);
+	(void)fprintf(stderr, "%s: %s%s\n", severity, type,
+		      pCallbackData->pMessage);
+
 	return VK_FALSE;
 }
 
@@ -141,15 +151,14 @@ VkResult createInstance(void)
 		return 10;
 	}
 
-	VkApplicationInfo appInfo = {
-		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-		.pApplicationName = "hello triangle",
-		.applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-		.pEngineName = "No Engine",
-		.engineVersion = VK_MAKE_VERSION(1, 0, 0),
-		.apiVersion = VK_API_VERSION_1_0,
-		.pNext = NULL
-	};
+	VkApplicationInfo appInfo = {0};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = "hello triangle";
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.pEngineName = "No Engine";
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion = VK_API_VERSION_1_0;
+	appInfo.pNext = NULL;
 
 	VkInstanceCreateInfo createInfo = {0};
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -176,7 +185,7 @@ VkResult createInstance(void)
 	return result == VK_SUCCESS ? 0 : 311;
 }
 
-VkResult CreateDebugUtilsMessengerEXT(
+VkResult createDebugUtilsMessengerEXT(
 	VkInstance instance,
 	const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
 	const VkAllocationCallbacks *pAllocator,
@@ -188,9 +197,8 @@ VkResult CreateDebugUtilsMessengerEXT(
 			"vkCreateDebugUtilsMessengerEXT");
 	if (func != NULL) {
 		return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-	} else {
-		return VK_ERROR_EXTENSION_NOT_PRESENT;
 	}
+	return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
 err setupDebugMessenger(void)
@@ -202,13 +210,157 @@ err setupDebugMessenger(void)
 	VkDebugUtilsMessengerCreateInfoEXT createInfo;
 	populateDebugMessengerCreateInfo(&createInfo);
 
-	VkResult res = CreateDebugUtilsMessengerEXT(instance, &createInfo,
+	VkResult res = createDebugUtilsMessengerEXT(instance, &createInfo,
 						    NULL, &debugMessenger);
 	if (res != VK_SUCCESS) {
 		return 321;
-	} else {
-		return 0;
 	}
+	return 0;
+}
+
+void destroyDebugUtilsMessengerEXT(
+	VkInstance instance,
+	VkDebugUtilsMessengerEXT debugMessenger,
+	const VkAllocationCallbacks *pAllocator)
+{
+	PFN_vkDestroyDebugUtilsMessengerEXT func =
+		(PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(
+			instance,
+			"vkDestroyDebugUtilsMessengerEXT");
+	if (func != NULL) {
+		func(instance, debugMessenger, pAllocator);
+	}
+}
+
+void cleanupVulkan(void)
+{
+	vkDestroyDevice(device, NULL);
+	if (ENABLE_VALIDATION_LAYERS) {
+		destroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
+	}
+	vkDestroyInstance(instance, NULL);
+}
+
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
+{
+	uint32_t queueFamilyCount = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,
+						 NULL);
+	VkQueueFamilyProperties *queueFamilies = NULL;
+	arrsetcap(queueFamilies, queueFamilyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,
+						 queueFamilies);
+
+	QueueFamilyIndices indices = {0};
+		
+	for (int i = 0; i < arrlen(queueFamilies); i++) {
+		VkQueueFamilyProperties queueFamily = queueFamilies[i];
+		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			indices.graphicsFamily = i;
+			indices.exists = true;
+			break;
+		}
+	}
+
+	return indices;
+}
+
+bool isDeviceSuitable(VkPhysicalDevice device)
+{
+	QueueFamilyIndices indices = findQueueFamilies(device);
+	return indices.exists;
+}
+
+bool isDeviceDiscreteGPU(VkPhysicalDevice device)
+{
+	VkPhysicalDeviceProperties deviceProperties;
+	VkPhysicalDeviceFeatures deviceFeatures;
+	vkGetPhysicalDeviceProperties(device, &deviceProperties);
+	vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+	return deviceProperties.deviceType ==
+		VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+		&& isDeviceSuitable(device);
+}
+
+err pickPhysicalDevice(void)
+{
+	uint32_t deviceCount = 0;
+	vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
+	/* No GPU found. */
+	if (deviceCount == 0) {
+		return 101;
+	}
+
+	VkPhysicalDevice *devices = NULL;
+	arrsetcap(devices, deviceCount);
+	vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
+
+	for (int i = 0; i < arrlen(devices); i++) {
+		VkPhysicalDevice device = devices[i];
+		if (isDeviceDiscreteGPU(device)) {
+			physicalDevice = device;
+			break;
+		}
+	}
+
+	/* No discrete GPU found, going for any */
+	if (physicalDevice == VK_NULL_HANDLE) {
+		for (int i = 0; i < arrlen(devices); i++) {
+			VkPhysicalDevice device = devices[i];
+			if (isDeviceSuitable(device)) {
+				physicalDevice = device;
+				break;
+			}
+		}
+	}
+
+	arrfree(devices);
+
+	/* No GPU found. */
+	if (physicalDevice == VK_NULL_HANDLE) {
+		return 199;
+	}
+
+	return 0;
+}
+
+err createLogicalDevice(void)
+{
+	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+	VkDeviceQueueCreateInfo queueCreateInfo = {0};
+	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily;
+	queueCreateInfo.queueCount = 1;
+
+	float queuePriority = 1.0f;
+	queueCreateInfo.pQueuePriorities = &queuePriority;
+
+	VkPhysicalDeviceFeatures deviceFeatures = {0};
+
+	VkDeviceCreateInfo createInfo = {0};
+	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	createInfo.pQueueCreateInfos = &queueCreateInfo;
+	createInfo.queueCreateInfoCount = 1;
+	createInfo.pEnabledFeatures = &deviceFeatures;
+	createInfo.enabledExtensionCount = 0;
+
+	if (ENABLE_VALIDATION_LAYERS) {
+		createInfo.enabledLayerCount = arrlen(validationLayers);
+		createInfo.ppEnabledLayerNames = validationLayers;
+	} else {
+		createInfo.enabledLayerCount = 0;
+	}
+
+	if (vkCreateDevice(physicalDevice, &createInfo, NULL, &device) !=
+	    VK_SUCCESS) {
+		return 55;
+	}
+
+	vkGetDeviceQueue(device, indices.graphicsFamily, 0, &graphicsQueue);
+
+	return 0;
 }
 
 err initVulkan(void)
@@ -227,27 +379,16 @@ err initVulkan(void)
 		/* Failed to setup a debug messenger. */
 		return e;
 	}
+
+	e = pickPhysicalDevice();
+	if (e) {
+		return e;
+	}
+
+	e = createLogicalDevice();
+	if (e) {
+		return e;
+	}
+
 	return 0;
-}
-
-void DestroyDebugUtilsMessengerEXT(
-	VkInstance instance,
-	VkDebugUtilsMessengerEXT debugMessenger,
-	const VkAllocationCallbacks *pAllocator)
-{
-	PFN_vkDestroyDebugUtilsMessengerEXT func =
-		(PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(
-			instance,
-			"vkDestroyDebugUtilsMessengerEXT");
-	if (func != NULL) {
-		func(instance, debugMessenger, pAllocator);
-	}
-}
-
-void cleanupVulkan(void)
-{
-	if (ENABLE_VALIDATION_LAYERS) {
-		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
-	}
-	vkDestroyInstance(instance, NULL);
 }
