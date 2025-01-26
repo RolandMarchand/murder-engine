@@ -1,15 +1,14 @@
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 #define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "GLFW/glfw3.h"
 #include "cglm/cglm.h"
+#include "common.h"
 #include "stb_ds.h"
 
 #define WIDTH 800
 #define HEIGHT 600
-
-typedef int err;
 
 GLFWwindow* window;
 
@@ -43,8 +42,6 @@ err initWindow(void)
 	return 0;
 }
 
-
-
 void mainLoop(void)
 {
 	do {
@@ -61,7 +58,7 @@ void cleanup(void)
 
 int main(void)
 {
-	err e;
+	err e = ERR_OK;
 
 	e = initWindow();
 	if (e) {

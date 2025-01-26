@@ -6,6 +6,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
+#include "common.h"
 #include "stb_ds.h"
 
 #ifdef NDEBUG
@@ -14,20 +15,29 @@
 #define ENABLE_VALIDATION_LAYERS true
 #endif
 
-typedef int err;
 /* Must initialize to NULL. To use with stb_ds. */
 typedef const char **vector_str;
 
 typedef struct QueueFamilyIndices {
-	uint32_t graphicsFamily;
-	bool exists;
-} __attribute__((aligned(8))) QueueFamilyIndices;
+	struct {
+		uint32_t value;
+		bool exists;
+	} ALIGN(8) graphicsFamily;
+	struct {
+		uint32_t value;
+		bool exists;
+	} ALIGN(8) presentFamily;
+} ALIGN(16) QueueFamilyIndices;
 
 VkInstance instance;
 VkDebugUtilsMessengerEXT debugMessenger;
 VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 VkDevice device;
 VkQueue graphicsQueue;
+VkQueue presentQueue;
+VkSurfaceKHR surface;
+
+extern GLFWwindow* window;
 
 const char *const validationLayers[] = {
 	"VK_LAYER_KHRONOS_validation",
@@ -204,7 +214,7 @@ VkResult createDebugUtilsMessengerEXT(
 err setupDebugMessenger(void)
 {
 	if (!ENABLE_VALIDATION_LAYERS) {
-		return 0;
+		return ERR_OK;
 	}
 
 	VkDebugUtilsMessengerCreateInfoEXT createInfo;
@@ -215,7 +225,7 @@ err setupDebugMessenger(void)
 	if (res != VK_SUCCESS) {
 		return 321;
 	}
-	return 0;
+	return ERR_OK;
 }
 
 void destroyDebugUtilsMessengerEXT(
@@ -238,6 +248,7 @@ void cleanupVulkan(void)
 	if (ENABLE_VALIDATION_LAYERS) {
 		destroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
 	}
+	vkDestroySurfaceKHR(instance, surface, NULL);
 	vkDestroyInstance(instance, NULL);
 }
 
@@ -247,7 +258,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,
 						 NULL);
 	VkQueueFamilyProperties *queueFamilies = NULL;
-	arrsetcap(queueFamilies, queueFamilyCount);
+	arrsetlen(queueFamilies, queueFamilyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,
 						 queueFamilies);
 
@@ -256,9 +267,16 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
 	for (int i = 0; i < arrlen(queueFamilies); i++) {
 		VkQueueFamilyProperties queueFamily = queueFamilies[i];
 		if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			indices.graphicsFamily = i;
-			indices.exists = true;
-			break;
+			indices.graphicsFamily.value = i;
+			indices.graphicsFamily.exists = true;
+
+			VkBool32 presentSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface,
+							     &presentSupport);
+			if (presentSupport) {
+				indices.presentFamily.value = i;
+				indices.presentFamily.exists = true;
+			}
 		}
 	}
 
@@ -268,7 +286,7 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
 bool isDeviceSuitable(VkPhysicalDevice device)
 {
 	QueueFamilyIndices indices = findQueueFamilies(device);
-	return indices.exists;
+	return indices.presentFamily.exists && indices.graphicsFamily.exists;
 }
 
 bool isDeviceDiscreteGPU(VkPhysicalDevice device)
@@ -293,7 +311,7 @@ err pickPhysicalDevice(void)
 	}
 
 	VkPhysicalDevice *devices = NULL;
-	arrsetcap(devices, deviceCount);
+	arrsetlen(devices, deviceCount);
 	vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
 
 	for (int i = 0; i < arrlen(devices); i++) {
@@ -304,7 +322,7 @@ err pickPhysicalDevice(void)
 		}
 	}
 
-	/* No discrete GPU found, going for any */
+	/* No discrete GPU found, going for any. */
 	if (physicalDevice == VK_NULL_HANDLE) {
 		for (int i = 0; i < arrlen(devices); i++) {
 			VkPhysicalDevice device = devices[i];
@@ -322,32 +340,45 @@ err pickPhysicalDevice(void)
 		return 199;
 	}
 
-	return 0;
+	return ERR_OK;
 }
 
 err createLogicalDevice(void)
 {
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-	VkDeviceQueueCreateInfo queueCreateInfo = {0};
-	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueCreateInfo.queueFamilyIndex = indices.graphicsFamily;
-	queueCreateInfo.queueCount = 1;
-
+	/* Graphics queue, and maybe present queue if they're the same. */
+	VkDeviceQueueCreateInfo queuesCreateInfo[2] = {0};
+	size_t queuesCreateInfoLength = 1;
 	float queuePriority = 1.0f;
-	queueCreateInfo.pQueuePriorities = &queuePriority;
+	queuesCreateInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queuesCreateInfo[0].queueFamilyIndex = indices.graphicsFamily.value;
+	queuesCreateInfo[0].queueCount = 1;
+	queuesCreateInfo[0].pQueuePriorities = &queuePriority;
+
+	/* Present queue if it is different from graphics queue. */
+	if (indices.graphicsFamily.value != indices.presentFamily.value) {
+		queuesCreateInfoLength = 2;
+		queuesCreateInfo[1].sType =
+			VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queuesCreateInfo[1].queueFamilyIndex =
+			indices.presentFamily.value;
+		queuesCreateInfo[1].queueCount = 1;
+		queuesCreateInfo[1].pQueuePriorities = &queuePriority;
+	}
 
 	VkPhysicalDeviceFeatures deviceFeatures = {0};
 
 	VkDeviceCreateInfo createInfo = {0};
 	createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	createInfo.pQueueCreateInfos = &queueCreateInfo;
-	createInfo.queueCreateInfoCount = 1;
+	createInfo.pQueueCreateInfos = queuesCreateInfo;
+	createInfo.queueCreateInfoCount = queuesCreateInfoLength;
 	createInfo.pEnabledFeatures = &deviceFeatures;
 	createInfo.enabledExtensionCount = 0;
 
 	if (ENABLE_VALIDATION_LAYERS) {
-		createInfo.enabledLayerCount = arrlen(validationLayers);
+		createInfo.enabledLayerCount =
+			sizeof(validationLayers) / sizeof(char*);
 		createInfo.ppEnabledLayerNames = validationLayers;
 	} else {
 		createInfo.enabledLayerCount = 0;
@@ -358,9 +389,22 @@ err createLogicalDevice(void)
 		return 55;
 	}
 
-	vkGetDeviceQueue(device, indices.graphicsFamily, 0, &graphicsQueue);
+	vkGetDeviceQueue(device, indices.graphicsFamily.value, 0,
+			 &graphicsQueue);
+	vkGetDeviceQueue(device, indices.presentFamily.value, 0,
+			 &presentQueue);
 
-	return 0;
+	return ERR_OK;
+}
+
+err createSurface(void)
+{
+	if (glfwCreateWindowSurface(instance, window, NULL, &surface) !=
+	    VK_SUCCESS) {
+		return 49;
+	}
+
+	return ERR_OK;
 }
 
 err initVulkan(void)
@@ -370,25 +414,30 @@ err initVulkan(void)
 	}
 
 	err e = createInstance();
-	if (e) {
+	if (e != ERR_OK) {
 		return e;
 	}
 
 	e = setupDebugMessenger();
-	if (e) {
+	if (e != ERR_OK) {
 		/* Failed to setup a debug messenger. */
 		return e;
 	}
 
+	e = createSurface();
+	if (e != ERR_OK) {
+		return e;
+	}
+
 	e = pickPhysicalDevice();
-	if (e) {
+	if (e != ERR_OK) {
 		return e;
 	}
 
 	e = createLogicalDevice();
-	if (e) {
+	if (e != ERR_OK) {
 		return e;
 	}
 
-	return 0;
+	return ERR_OK;
 }
