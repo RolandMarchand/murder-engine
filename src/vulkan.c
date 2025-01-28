@@ -48,9 +48,10 @@ VkQueue graphicsQueue;
 VkQueue presentQueue;
 VkSurfaceKHR surface;
 VkSwapchainKHR swapChain;
-VkImage *swapChainImages;	/* std_ds.h array */
+VkImage *swapChainImages; /* std_ds.h array */
 VkFormat swapChainImageFormat;
 VkExtent2D swapChainExtent;
+VkImageView *swapChainImageViews; /* std_ds.h array */
 
 extern GLFWwindow* window;
 
@@ -262,6 +263,9 @@ void destroyDebugUtilsMessengerEXT(
 
 void cleanupVulkan(void)
 {
+	for (int i = 0; i < arrlen(swapChainImageViews); i++) {
+		vkDestroyImageView(device, swapChainImageViews[i], NULL);
+	}
 	vkDestroySwapchainKHR(device, swapChain, NULL);
 	vkDestroyDevice(device, NULL);
 	if (ENABLE_VALIDATION_LAYERS) {
@@ -270,6 +274,7 @@ void cleanupVulkan(void)
 	vkDestroySurfaceKHR(instance, surface, NULL);
 	vkDestroyInstance(instance, NULL);
 	arrfree(swapChainImages);
+	arrfree(swapChainImageViews);
 }
 
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
@@ -634,6 +639,38 @@ err createSurface(void)
 	return ERR_OK;
 }
 
+err createImageViews(void)
+{
+	int imageslength = arrlen(swapChainImages);
+	arrsetlen(swapChainImageViews, imageslength);
+	for (int i = 0; i < imageslength; i++) {
+		VkImageViewCreateInfo createInfo = {0};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = swapChainImages[i];
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = swapChainImageFormat;
+
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+		createInfo.subresourceRange.aspectMask =
+			VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(device, &createInfo, NULL,
+				      &swapChainImageViews[i]) != VK_SUCCESS) {
+			return 9998;
+		}
+	}
+
+	return ERR_OK;
+}
+
 err initVulkan(void)
 {
 	if (!glfwVulkanSupported()) {
@@ -666,6 +703,11 @@ err initVulkan(void)
 	}
 
 	e = createSwapChain();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = createImageViews();
 	if (e != ERR_OK) {
 		return e;
 	}
