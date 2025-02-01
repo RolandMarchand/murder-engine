@@ -6,5 +6,3 @@ set_target_properties(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} PRIVATE
   ${GLFW3_LIBRARY}
   ${Vulkan_LIBRARIES})
-
-target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror=vla)

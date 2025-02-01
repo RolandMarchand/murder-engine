@@ -16,3 +16,7 @@ enum {
 
 typedef int err;
 
+/* std_ds.h string hashmap */
+typedef struct ALIGN(16) {
+	char *key, *value;
+} *Arguments;
