@@ -59,6 +59,7 @@ VkPipelineLayout pipelineLayout;
 VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
+VkFramebuffer *swapChainFramebuffers; /* stb_ds.h array */
 
 extern GLFWwindow *window;
 
@@ -263,26 +264,6 @@ void destroyDebugUtilsMessengerEXT(VkInstance instance,
 	if (func != nullptr) {
 		func(instance, debugMessenger, pAllocator);
 	}
-}
-
-void cleanupVulkan(void)
-{
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, renderPass, nullptr);
-	for (int i = 0; i < arrlen(swapChainImageViews); i++) {
-		vkDestroyImageView(device, swapChainImageViews[i], nullptr);
-	}
-	vkDestroySwapchainKHR(device, swapChain, nullptr);
-	vkDestroyDevice(device, nullptr);
-	if (ENABLE_VALIDATION_LAYERS) {
-		destroyDebugUtilsMessengerEXT(instance, debugMessenger,
-					      nullptr);
-	}
-	vkDestroySurfaceKHR(instance, surface, nullptr);
-	vkDestroyInstance(instance, nullptr);
-	arrfree(swapChainImages);
-	arrfree(swapChainImageViews);
 }
 
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
@@ -931,6 +912,59 @@ err createGraphicsPipeline(void)
 	return ERR_OK;
 }
 
+err createFramebuffers(void)
+{
+	size_t swapChainImageViewsLength = arrlen(swapChainImageViews);
+	arrsetlen(swapChainFramebuffers, swapChainImageViewsLength);
+	for (size_t i = 0; i < swapChainImageViewsLength; i++) {
+		VkImageView attachments[] = {
+			swapChainImageViews[i]
+		};
+		VkFramebufferCreateInfo framebufferInfo = {0};
+		framebufferInfo.sType =
+			VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = renderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = attachments;
+		framebufferInfo.width = swapChainExtent.width;
+		framebufferInfo.height = swapChainExtent.height;
+		framebufferInfo.layers = 1;
+
+		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr,
+					&swapChainFramebuffers[i])
+		    != VK_SUCCESS) {
+			return 4443;
+		}
+	}
+
+	return ERR_OK;
+}
+
+void cleanupVulkan(void)
+{
+	for (int i = 0; i < arrlen(swapChainFramebuffers); i++) {
+		vkDestroyFramebuffer(device, swapChainFramebuffers[i],
+				     nullptr);
+	}
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
+	for (int i = 0; i < arrlen(swapChainImageViews); i++) {
+		vkDestroyImageView(device, swapChainImageViews[i], nullptr);
+	}
+	vkDestroySwapchainKHR(device, swapChain, nullptr);
+	vkDestroyDevice(device, nullptr);
+	if (ENABLE_VALIDATION_LAYERS) {
+		destroyDebugUtilsMessengerEXT(instance, debugMessenger,
+					      nullptr);
+	}
+	vkDestroySurfaceKHR(instance, surface, nullptr);
+	vkDestroyInstance(instance, nullptr);
+	arrfree(swapChainImages);
+	arrfree(swapChainImageViews);
+	arrfree(swapChainFramebuffers);
+}
+
 err initVulkan(void)
 {
 	if (!glfwVulkanSupported()) {
@@ -978,6 +1012,11 @@ err initVulkan(void)
 	}
 
 	e = createGraphicsPipeline();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = createFramebuffers();
 	if (e != ERR_OK) {
 		return e;
 	}
