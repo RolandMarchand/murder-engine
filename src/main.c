@@ -8,15 +8,17 @@
 #include "common.h"
 #include "stb_ds.h"
 
-#define WIDTH 800
-#define HEIGHT 600
-
-GLFWwindow *window;
-
-/* stb_ds.h string hashmap */
-Arguments arguments;
+enum {
+	WIDTH = 800,
+	HEIGHT = 600
+};
 
 #include "vulkan.c"
+
+GLFWwindow *window;
+Arguments arguments; /* stb_ds.h string hashmap */
+extern VkFence inFlightFence;
+extern VkDevice device;
 
 /* The program expects each pair of arguments to be under the format: --option
  * value. Those key-pairs are recorded into the global `arguments` variable,
@@ -81,7 +83,8 @@ err initWindow(void)
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+	window = glfwCreateWindow(WIDTH, HEIGHT, "Laz's Engine", nullptr,
+				  nullptr);
 	if (!window) {
 		return 2;
 	}
@@ -93,9 +96,15 @@ err initWindow(void)
 
 void mainLoop(void)
 {
+	err e = ERR_OK;
 	do {
 		glfwPollEvents();
+		e = drawFrame();
+		if (e != ERR_OK) {
+			return;
+		}
 	} while (!glfwWindowShouldClose(window));
+	vkDeviceWaitIdle(device);
 }
 
 void cleanup(void)
