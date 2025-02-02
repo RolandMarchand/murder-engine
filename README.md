@@ -1,13 +1,13 @@
 # Tiny Vulkan Engine
 
-A minimal Vulkan graphics engine written in C, following the Vulkan tutorial at [vulkan-tutorial.com](https://vulkan-tutorial.com). This project is designed to be small, efficient, and educational.
+A minimal Vulkan graphics engine written in C. This project is designed to be small, efficient, and educational.
 
 ## Requirements
 
 - CMake 3.10 or higher
 - Vulkan SDK
 - GLFW3
-- C compiler with C11 support
+- C compiler with C23 support
 - Linux operating system
 
 ## Project Structure
