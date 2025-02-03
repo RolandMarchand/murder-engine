@@ -15,7 +15,7 @@ CheckOptions:
   - key:             readability-identifier-naming.UnionCase
     value:           camelBack
   - key:             readability-identifier-naming.VariableCase
-    value:           camelBack
+    value:           camelBack,UPPER_CASE
   - key:             readability-identifier-naming.IgnoreMainLikeFunctions
     value:           1
   - key:             readability-redundant-member-init.IgnoreBaseInCopyConstructors

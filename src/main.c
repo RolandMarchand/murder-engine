@@ -8,7 +8,7 @@
 #include "common.h"
 #include "stb_ds.h"
 
-enum {
+enum: int {
 	WIDTH = 800,
 	HEIGHT = 600
 };
