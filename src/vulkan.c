@@ -58,7 +58,6 @@ VkImage *swapChainImages; /* stb_ds.h array */
 VkFormat swapChainImageFormat;
 VkExtent2D swapChainExtent;
 VkImageView *swapChainImageViews; /* stb_ds.h array */
-VkPipelineLayout pipelineLayout;
 VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
@@ -68,6 +67,8 @@ VkCommandBuffer *commandBuffers; /* stb_ds.h array */
 VkSemaphore *imageAvailableSemaphores; /* stb_ds.h array */
 VkSemaphore *renderFinishedSemaphores; /* stb_ds.h array */
 VkFence *inFlightFences; /* stb_ds.h array */
+
+bool framebufferResized;
 
 extern GLFWwindow *window;
 
@@ -1086,27 +1087,73 @@ err createSyncObjects(void)
 	return ERR_OK;
 }
 
-void cleanupVulkan(void)
+void cleanupSwapChain(void)
 {
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-		vkDestroySemaphore(device, imageAvailableSemaphores[i],
-				   nullptr);
-		vkDestroySemaphore(device, renderFinishedSemaphores[i],
-				   nullptr);
-		vkDestroyFence(device, inFlightFences[i], nullptr);
-	}
-	vkDestroyCommandPool(device, commandPool, nullptr);
 	for (int i = 0; i < arrlen(swapChainFramebuffers); i++) {
 		vkDestroyFramebuffer(device, swapChainFramebuffers[i],
 				     nullptr);
 	}
-	vkDestroyPipeline(device, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, renderPass, nullptr);
+
 	for (int i = 0; i < arrlen(swapChainImageViews); i++) {
 		vkDestroyImageView(device, swapChainImageViews[i], nullptr);
 	}
+
 	vkDestroySwapchainKHR(device, swapChain, nullptr);
+}
+
+err recreateSwapChain(void)
+{
+	int width = 0;
+	int height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
+	/* Handle minimized windows. */
+	while (width == 0 || height == 0) {
+		glfwGetFramebufferSize(window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	vkDeviceWaitIdle(device);
+	cleanupSwapChain();
+
+	err e = ERR_OK;
+
+	e = createSwapChain();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = createImageViews();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = createFramebuffers();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	return ERR_OK;
+}
+
+void cleanupVulkan(void)
+{
+	vkDeviceWaitIdle(device);
+	cleanupSwapChain();
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
+	for (int i = 0; i < arrlen(imageAvailableSemaphores); i++) {
+		vkDestroySemaphore(device, imageAvailableSemaphores[i],
+				   nullptr);
+	}
+	for (int i = 0; i < arrlen(renderFinishedSemaphores); i++) {
+		vkDestroySemaphore(device, renderFinishedSemaphores[i],
+				   nullptr);
+	}
+	for (int i = 0; i < arrlen(inFlightFences); i++) {
+		vkDestroyFence(device, inFlightFences[i], nullptr);
+	}
+	vkDestroyCommandPool(device, commandPool, nullptr);
 	vkDestroyDevice(device, nullptr);
 	if (ENABLE_VALIDATION_LAYERS) {
 		destroyDebugUtilsMessengerEXT(instance, debugMessenger,
@@ -1117,6 +1164,10 @@ void cleanupVulkan(void)
 	arrfree(swapChainImages);
 	arrfree(swapChainImageViews);
 	arrfree(swapChainFramebuffers);
+	arrfree(commandBuffers);
+	arrfree(imageAvailableSemaphores);
+	arrfree(renderFinishedSemaphores);
+	arrfree(inFlightFences);
 }
 
 err initVulkan(void)
@@ -1193,16 +1244,31 @@ err initVulkan(void)
 	return ERR_OK;
 }
 
-err drawFrame() {
-	
+err drawFrame(void) {
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE,
 			UINT64_MAX);
-	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
+	if (framebufferResized) {
+		framebufferResized = false;
+		recreateSwapChain();
+	}
 
 	uint32_t imageIndex = 0;
-	vkAcquireNextImageKHR(device, swapChain, UINT64_MAX,
+	VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX,
 			      imageAvailableSemaphores[currentFrame],
 			      VK_NULL_HANDLE, &imageIndex);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+		return recreateSwapChain();
+	}
+	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+		/* Failed to acquire swap chain image. */
+		return 9706;
+	}
+
+	/* Only reset the fence if we are submitting work. */
+	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+
 	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
@@ -1247,7 +1313,18 @@ err drawFrame() {
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr;
 
-	vkQueuePresentKHR(presentQueue, &presentInfo);
+	result = vkQueuePresentKHR(presentQueue, &presentInfo);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR
+	    || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+		framebufferResized = false;
+		err e = recreateSwapChain();
+		if (e != ERR_OK) {
+			return e;
+		}
+	} else if (result != VK_SUCCESS) {
+		/* Failed to present swap chain image. */
+		return 9543;
+	}
 
 	currentFrame += 1;
 	currentFrame %= MAX_FRAMES_IN_FLIGHT;

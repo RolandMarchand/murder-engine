@@ -14,6 +14,6 @@ set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_compile_options(-Wall -Wextra -Wpedantic -Werror=vla)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,undefined -Wall -Wextra -Wpedantic -Werror=vla")
 
 add_subdirectory(src)

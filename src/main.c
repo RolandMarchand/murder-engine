@@ -19,6 +19,7 @@ GLFWwindow *window;
 Arguments arguments; /* stb_ds.h string hashmap */
 extern VkFence inFlightFence;
 extern VkDevice device;
+extern bool framebufferResized;
 
 /* The program expects each pair of arguments to be under the format: --option
  * value. Those key-pairs are recorded into the global `arguments` variable,
@@ -64,6 +65,14 @@ void storeArguments(int argc, char **argv, char **error)
 #undef USAGE
 }
 
+void framebufferResizeCallback(GLFWwindow* window, int width, int height)
+{
+	(void)window;
+	(void)width;
+	(void)height;
+	framebufferResized = true;
+}
+
 void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 		 int mods)
 {
@@ -82,9 +91,10 @@ err initWindow(void)
 	}
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	window = glfwCreateWindow(WIDTH, HEIGHT, "Laz's Engine", nullptr,
 				  nullptr);
+	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
 	if (!window) {
 		return 2;
 	}
