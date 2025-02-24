@@ -5,9 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
+#include "config.h"
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
-#include "common.h"
 #include "stb_ds.h"
 
 #ifdef NDEBUG
@@ -17,6 +18,9 @@
 #endif
 
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
+#define ARRAY_COUNT_STATIC(array) (sizeof(array) / sizeof((array)[0]))
+
+#include "vertex.c"
 
 static constexpr size_t MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -46,27 +50,29 @@ typedef struct {
 extern Arguments arguments;
 
 uint32_t currentFrame;
-VkInstance instance;
+VkBuffer vertexBuffer;
+VkCommandBuffer *commandBuffers; /* stb_ds.h array */
+VkCommandPool commandPool;
 VkDebugUtilsMessengerEXT debugMessenger;
-VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 VkDevice device;
+VkDeviceMemory vertexBufferMemory;
+VkExtent2D swapChainExtent;
+VkFence *inFlightFences; /* stb_ds.h array */
+VkFormat swapChainImageFormat;
+VkFramebuffer *swapChainFramebuffers; /* stb_ds.h array */
+VkImage *swapChainImages; /* stb_ds.h array */
+VkImageView *swapChainImageViews; /* stb_ds.h array */
+VkInstance instance;
+VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+VkPipeline graphicsPipeline;
+VkPipelineLayout pipelineLayout;
 VkQueue graphicsQueue;
 VkQueue presentQueue;
-VkSurfaceKHR surface;
-VkSwapchainKHR swapChain;
-VkImage *swapChainImages; /* stb_ds.h array */
-VkFormat swapChainImageFormat;
-VkExtent2D swapChainExtent;
-VkImageView *swapChainImageViews; /* stb_ds.h array */
 VkRenderPass renderPass;
-VkPipelineLayout pipelineLayout;
-VkPipeline graphicsPipeline;
-VkFramebuffer *swapChainFramebuffers; /* stb_ds.h array */
-VkCommandPool commandPool;
-VkCommandBuffer *commandBuffers; /* stb_ds.h array */
 VkSemaphore *imageAvailableSemaphores; /* stb_ds.h array */
 VkSemaphore *renderFinishedSemaphores; /* stb_ds.h array */
-VkFence *inFlightFences; /* stb_ds.h array */
+VkSurfaceKHR surface;
+VkSwapchainKHR swapChain;
 
 bool framebufferResized;
 
@@ -88,7 +94,7 @@ bool checkValidationLayerSupport(void)
 	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
 
 	bool layersAllFound = true;
-	for (size_t i = 0; i < sizeof(validationLayers) / sizeof(char *); i++) {
+	for (size_t i = 0; i < ARRAY_COUNT_STATIC(validationLayers); i++) {
 		bool layerFound = false;
 		const char *layerName = validationLayers[i];
 
@@ -216,7 +222,7 @@ VkResult createInstance(void)
 	createInfo.ppEnabledExtensionNames = extensions;
 	if (ENABLE_VALIDATION_LAYERS) {
 		createInfo.enabledLayerCount =
-			sizeof(validationLayers) / sizeof(char *);
+			ARRAY_COUNT_STATIC(validationLayers);
 		createInfo.ppEnabledLayerNames = validationLayers;
 		populateDebugMessengerCreateInfo(&debugCreateInfo);
 		createInfo.pNext = &debugCreateInfo;
@@ -318,8 +324,7 @@ bool checkDeviceExtensionSupport(VkPhysicalDevice device)
 	vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount,
 					     availableExtensions);
 
-	size_t deviceExtensionsCount =
-		sizeof(deviceExtensions) / sizeof(char *);
+	size_t deviceExtensionsCount = ARRAY_COUNT_STATIC(deviceExtensions);
 	struct ALIGN(16) {
 		char *key;
 		bool value;
@@ -599,13 +604,12 @@ err createLogicalDevice(void)
 	createInfo.pQueueCreateInfos = queuesCreateInfo;
 	createInfo.queueCreateInfoCount = queuesCreateInfoLength;
 	createInfo.pEnabledFeatures = &deviceFeatures;
-	createInfo.enabledExtensionCount =
-		sizeof(deviceExtensions) / sizeof(char *);
+	createInfo.enabledExtensionCount = ARRAY_COUNT_STATIC(deviceExtensions);
 	createInfo.ppEnabledExtensionNames = deviceExtensions;
 
 	if (ENABLE_VALIDATION_LAYERS) {
 		createInfo.enabledLayerCount =
-			sizeof(validationLayers) / sizeof(char *);
+			ARRAY_COUNT_STATIC(validationLayers);
 		createInfo.ppEnabledLayerNames = validationLayers;
 	} else {
 		createInfo.enabledLayerCount = 0;
@@ -735,19 +739,19 @@ err createShaderModule(const char *code, size_t length, VkShaderModule *module)
 err createGraphicsPipeline(void)
 {
 	const char vertCode[] = {
-#embed "shaders/vert.spv"
-		// Buffer for 32 bit interpretation
-		, '\0', '\0', '\0'
+#embed VERTEX_SHADER_PATH
+		/* Null term + buffer for 32 bit interpretation */
+		, '\0', '\0', '\0', '\0'
 	};
 
 	const char fragCode[] = {
-#embed "shaders/frag.spv"
-		// Buffer for 32 bit interpretation
-		, '\0', '\0', '\0'
+#embed FRAGMENT_SHADER_PATH
+		/* Null term + buffer for 32 bit interpretation */
+		, '\0', '\0', '\0', '\0'
 	};
 
-	size_t vertLength = sizeof(vertCode) - (3 * sizeof(char));
-	size_t fragLength = sizeof(fragCode) - (3 * sizeof(char));
+	size_t vertLength = sizeof(vertCode) - 4;
+	size_t fragLength = sizeof(fragCode) - 4;
 
 	VkShaderModule vertShaderModule = nullptr;
 	VkShaderModule fragShaderModule = nullptr;
@@ -781,13 +785,20 @@ err createGraphicsPipeline(void)
 	};
 
 	/* Vertex input */
+	VkVertexInputBindingDescription bindingDescription
+		= vertexGetBindingDescription();
+	struct AttributeDescriptions attributeDescriptions
+		= vertexGetAttributeDescriptions();
+
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
 	vertexInputInfo.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 0;
-	vertexInputInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.vertexAttributeDescriptionCount
+		= ARRAY_COUNT_STATIC(attributeDescriptions.descriptions);
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputInfo.pVertexAttributeDescriptions
+		= attributeDescriptions.descriptions;
 
 	/* Input assembly */
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
@@ -1000,6 +1011,67 @@ err createCommandBuffers(void)
 	return ERR_OK;
 }
 
+/* Return -1 if there are no suitable memory types. */
+uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+		if (typeFilter & (1 << i)
+		    && (memProperties.memoryTypes[i].propertyFlags
+			& properties) == properties) {
+			return i;
+		}
+	}
+
+	return (uint32_t)-1;
+}
+
+err createVertexBuffer(void)
+{
+	VkBufferCreateInfo bufferInfo = {0};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = sizeof(vertices);
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer)
+	    != VK_SUCCESS) {
+		return 8079;
+	}
+
+	VkMemoryRequirements memRequirements = {0};
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+	uint32_t memoryTypeIndex =
+		findMemoryType(memRequirements.memoryTypeBits,
+			       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+			       | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	if (memoryTypeIndex == (uint32_t)-1) {
+		return 8078;
+	}
+
+	VkMemoryAllocateInfo allocInfo = {0};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = memoryTypeIndex;
+
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory)
+	    != VK_SUCCESS) {
+		return 8077;
+	}
+
+	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+
+	void *data = NULL;
+	vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+	memcpy(data, vertices, (size_t)bufferInfo.size);
+	vkUnmapMemory(device, vertexBufferMemory);
+
+	return ERR_OK;
+}
+
 err recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
 	VkCommandBufferBeginInfo beginInfo = {0};
@@ -1029,6 +1101,10 @@ err recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
 			  graphicsPipeline);
 
+	VkBuffer vertexBuffers[] = {vertexBuffer};
+	VkDeviceSize offsets[] = {0};
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
 	VkViewport viewport = {0};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
@@ -1044,7 +1120,7 @@ err recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 	scissor.extent = swapChainExtent;
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+	vkCmdDraw(commandBuffer, ARRAY_COUNT_STATIC(vertices), 1, 0, 0);
 
 	vkCmdEndRenderPass(commandBuffer);
 
@@ -1139,6 +1215,8 @@ void cleanupVulkan(void)
 {
 	vkDeviceWaitIdle(device);
 	cleanupSwapChain();
+	vkDestroyBuffer(device, vertexBuffer, nullptr);
+	vkFreeMemory(device, vertexBufferMemory, nullptr);
 	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	vkDestroyRenderPass(device, renderPass, nullptr);
@@ -1227,6 +1305,11 @@ err initVulkan(void)
 	}
 
 	e = createCommandPool();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = createVertexBuffer();
 	if (e != ERR_OK) {
 		return e;
 	}
