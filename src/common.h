@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #define ALIGN(x) __attribute__((aligned(x)))
 
 #if defined(__builtin_expect)

@@ -1,3 +1,6 @@
+/* This is an unfinished Vulkan renderer. The renderer is currently at the
+ * "Staging buffer" stage. */
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -5,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cglm/cglm.h"
 #include "common.h"
 #include "config.h"
 #define GLFW_INCLUDE_VULKAN
@@ -20,9 +24,26 @@
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 #define ARRAY_COUNT_STATIC(array) (sizeof(array) / sizeof((array)[0]))
 
-#include "vertex.c"
+enum : size_t {
+	/* If you want to change this to a non-power of 2, change the frame
+	 * incrementing logic to use modulo instead of AND. */
+	MAX_FRAMES_IN_FLIGHT = 2
+};
 
-static constexpr size_t MAX_FRAMES_IN_FLIGHT = 2;
+typedef struct ALIGN(32) Vertex {
+	vec2 pos;
+	vec3 color;
+} Vertex;
+
+const Vertex vertices[] = {
+    {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}	
+};
+
+struct ALIGN(32) AttributeDescriptions {
+	VkVertexInputAttributeDescription descriptions[2];
+};
 
 /* Must initialize to nullptr. To use with stb_ds. */
 typedef const char **vector_str;
@@ -84,6 +105,14 @@ const char *const validationLayers[] = {
 const char *const deviceExtensions[] = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
+
+void vulkanFramebufferResizeCallback(GLFWwindow *window, int width, int height)
+{
+	(void)window;
+	(void)width;
+	(void)height;
+	framebufferResized = true;
+}
 
 bool checkValidationLayerSupport(void)
 {
@@ -736,16 +765,45 @@ err createShaderModule(const char *code, size_t length, VkShaderModule *module)
 	return ERR_OK;
 }
 
+VkVertexInputBindingDescription vertexGetBindingDescription(void)
+{
+	VkVertexInputBindingDescription bindingDescription = {0};
+
+	bindingDescription.binding = 0;
+	bindingDescription.stride = sizeof(Vertex);
+	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	return bindingDescription;
+}
+
+struct AttributeDescriptions vertexGetAttributeDescriptions(void)
+{
+	struct AttributeDescriptions attributeDescriptions = {0};
+
+	attributeDescriptions.descriptions[0].binding = 0;
+	attributeDescriptions.descriptions[0].location = 0;
+	attributeDescriptions.descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+	attributeDescriptions.descriptions[0].offset = offsetof(Vertex, pos);
+
+	attributeDescriptions.descriptions[1].binding = 0;
+	attributeDescriptions.descriptions[1].location = 1;
+	attributeDescriptions.descriptions[1].format =
+		VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescriptions.descriptions[1].offset = offsetof(Vertex, color);
+
+	return attributeDescriptions;
+}
+
 err createGraphicsPipeline(void)
 {
 	const char vertCode[] = {
-#embed VERTEX_SHADER_PATH
+#embed VULKAN_VERTEX_SHADER_PATH
 		/* Null term + buffer for 32 bit interpretation */
 		, '\0', '\0', '\0', '\0'
 	};
 
 	const char fragCode[] = {
-#embed FRAGMENT_SHADER_PATH
+#embed VULKAN_FRAGMENT_SHADER_PATH
 		/* Null term + buffer for 32 bit interpretation */
 		, '\0', '\0', '\0', '\0'
 	};
@@ -1410,7 +1468,7 @@ err drawFrame(void) {
 	}
 
 	currentFrame += 1;
-	currentFrame %= MAX_FRAMES_IN_FLIGHT;
+	currentFrame &= MAX_FRAMES_IN_FLIGHT - 1;
 
 	return ERR_OK;
 }

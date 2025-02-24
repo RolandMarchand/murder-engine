@@ -11,6 +11,8 @@ find_package(GLFW3 REQUIRED)
 find_package(Vulkan REQUIRED)
 find_program(GLSLC glslc REQUIRED)
 
+option(VULKAN_ENABLED "Enable Vulkan instead of OpenGL" OFF)
+
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)

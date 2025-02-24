@@ -2,24 +2,30 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define GLFW_INCLUDE_VULKAN
-#include "GLFW/glfw3.h"
-#include "cglm/cglm.h"
 #include "common.h"
 #include "stb_ds.h"
+
+#ifdef VULKAN_ENABLED
+#define GLFW_INCLUDE_VULKAN
+#endif /* VULKAN_ENABLED */
+
+#include "GLFW/glfw3.h"
 
 enum: int {
 	WIDTH = 800,
 	HEIGHT = 600
 };
 
+#ifdef VULKAN_ENABLED
 #include "vulkan.c"
+extern VkDevice device;
+extern bool framebufferResized;
+#else /* !VULKAN_ENABLED */
+#include "opengl.c"
+#endif /* VULKAN_ENABLED */
 
 GLFWwindow *window;
 Arguments arguments; /* stb_ds.h string hashmap */
-extern VkFence inFlightFence;
-extern VkDevice device;
-extern bool framebufferResized;
 
 /* The program expects each pair of arguments to be under the format: --option
  * value. Those key-pairs are recorded into the global `arguments` variable,
@@ -65,12 +71,13 @@ void storeArguments(int argc, char **argv, char **error)
 #undef USAGE
 }
 
-void framebufferResizeCallback(GLFWwindow* window, int width, int height)
+void framebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
-	(void)window;
-	(void)width;
-	(void)height;
-	framebufferResized = true;
+#ifdef VULKAN_ENABLED
+	vulkanFramebufferResizeCallback(window, width, height);
+#else /* !VULKAN_ENABLED */
+	openglFramebufferResizeCallback(window, width, height);
+#endif /* VULKAN_ENABLED */
 }
 
 void keyCallback(GLFWwindow *window, int key, int scancode, int action,
@@ -104,6 +111,22 @@ err initWindow(void)
 	return 0;
 }
 
+err init()
+{
+	err e = ERR_OK;
+
+	e = initWindow();
+	if (e == ERR_OK) {
+#ifdef VULKAN_ENABLED
+		e = initVulkan();
+#else /* !VULKAN_ENABLED */
+		e = initOpengl();
+#endif /* VULKAN_ENABLED */
+	}
+
+	return e;
+}
+
 void mainLoop(void)
 {
 	err e = ERR_OK;
@@ -114,20 +137,24 @@ void mainLoop(void)
 			return;
 		}
 	} while (!glfwWindowShouldClose(window));
+#ifdef VULKAN_ENABLED
 	vkDeviceWaitIdle(device);
+#endif /* VULKAN-ENABLED */
 }
 
 void cleanup(void)
 {
+#ifdef VULKAN_ENABLED
 	cleanupVulkan();
+#else /* !VULKAN-ENABLED */
+	cleanupOpengl();
+#endif /* VULKAN-ENABLED */
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
 
 int main(int argc, char **argv)
 {
-	err e = ERR_OK;
-
 	char *argError = nullptr;
 	storeArguments(argc, argv, &argError);
 	if (argError != nullptr) {
@@ -135,13 +162,8 @@ int main(int argc, char **argv)
 		return 622;
 	}
 
-	e = initWindow();
-	if (e) {
-		return e;
-	}
-
-	e = initVulkan();
-	if (e) {
+	err e = init();
+	if (e != ERR_OK) {
 		return e;
 	}
 
