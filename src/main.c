@@ -30,7 +30,8 @@ void storeArguments(int argc, char **argv, char **error)
 
 	*error = nullptr;
 
-	if (argc % 2 != 0) {
+	/* If odd. */
+	if (argc & 1) {
 		*error = "missing or extra argument: " USAGE;
 		return;
 	}
@@ -40,7 +41,7 @@ void storeArguments(int argc, char **argv, char **error)
 	sh_new_arena(arguments);
 	for (int i = 0; i < argc; i++) {
 		len = strlen(argv[i]);
-		/* if odd */
+		/* If odd. */
 		if (i & 1) {
 			shput(arguments, option, strdup(argv[i]));
 			continue;
@@ -58,45 +59,12 @@ void storeArguments(int argc, char **argv, char **error)
 #undef USAGE
 }
 
-
-Error init()
-{
-	Error e = ERR_OK;
-
-	e = initWindow();
-	if (e == ERR_OK) {
-		e = initGraphics();
-	}
-
-	return e;
-}
-
-void mainLoop(void)
-{
-	Error e = ERR_OK;
-	do {
-		glfwPollEvents();
-		e = drawFrame();
-		if (e != ERR_OK) {
-			return;
-		}
-	} while (!glfwWindowShouldClose(window));
-	frameCleanup();
-}
-
 void freeArguments(void)
 {
 	for (int i = 0; i < shlen(arguments); i++) {
 		free(arguments[i].value);
 	}
 	shfree(arguments);
-}
-
-void cleanup(void)
-{
-	cleanupGraphics();
-	glfwDestroyWindow(window);
-	glfwTerminate();
 }
 
 int main(int argc, char **argv)

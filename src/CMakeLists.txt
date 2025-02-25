@@ -12,7 +12,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 else() # OpenGL
 target_link_libraries(${PROJECT_NAME} PRIVATE
   ${GLFW3_LIBRARY}
-  ${Vulkan_LIBRARIES})
+  OpenGL::GL)
 endif()
 
 add_subdirectory(shaders)

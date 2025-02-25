@@ -1414,6 +1414,22 @@ Error initGraphics(void)
 	return ERR_OK;
 }
 
+Error init()
+{
+	Error e = ERR_OK;
+
+	e = initWindow();
+	if (e == ERR_OK) {
+		e = initGraphics();
+	}
+
+	if (e != ERR_OK) {
+		printError(e);
+	}
+
+	return e;
+}
+
 Error drawFrame(void) {
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE,
 			UINT64_MAX);
@@ -1503,4 +1519,25 @@ Error drawFrame(void) {
 void frameCleanup(void)
 {
 	vkDeviceWaitIdle(device);
+}
+
+void mainLoop(void)
+{
+	Error e = ERR_OK;
+	do {
+		glfwPollEvents();
+		e = drawFrame();
+		if (e != ERR_OK) {
+			printError(e);
+			return;
+		}
+	} while (!glfwWindowShouldClose(window));
+	frameCleanup();
+}
+
+void cleanup(void)
+{
+	cleanupGraphics();
+	glfwDestroyWindow(window);
+	glfwTerminate();
 }
