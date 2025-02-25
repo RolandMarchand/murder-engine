@@ -1,7 +1,7 @@
 if (VULKAN_ENABLED)
-  set(VERT_IN ${CMAKE_CURRENT_SOURCE_DIR}/vertex.glsl)
+  set(VERT_IN ${CMAKE_CURRENT_SOURCE_DIR}/vulkan-vertex.glsl)
   set(VERT_OUT ${CMAKE_CURRENT_BINARY_DIR}/vert.spv)
-  set(FRAG_IN ${CMAKE_CURRENT_SOURCE_DIR}/fragment.glsl)
+  set(FRAG_IN ${CMAKE_CURRENT_SOURCE_DIR}/vulkan-fragment.glsl)
   set(FRAG_OUT ${CMAKE_CURRENT_BINARY_DIR}/frag.spv)
 
   add_custom_command(
