@@ -70,6 +70,7 @@ typedef struct {
 /* stb_ds.h string hashmap */
 extern Arguments arguments;
 
+GLFWwindow *window;
 uint32_t currentFrame;
 VkBuffer vertexBuffer;
 VkCommandBuffer *commandBuffers; /* stb_ds.h array */
@@ -106,12 +107,43 @@ const char *const deviceExtensions[] = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
 
-void vulkanFramebufferResizeCallback(GLFWwindow *window, int width, int height)
+void framebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
 	(void)window;
 	(void)width;
 	(void)height;
 	framebufferResized = true;
+}
+
+void keyCallback(GLFWwindow *window, int key, int scancode, int action,
+		 int mods)
+{
+	(void)scancode;
+	(void)mods;
+
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+	}
+}
+
+Error initWindow(void)
+{
+	if (!glfwInit()) {
+		return ERR_WINDOW_CREATION_FAILED;
+	}
+
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	window = glfwCreateWindow(WIDTH, HEIGHT, ENGINE_NAME, nullptr,
+				  nullptr);
+	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
+	if (!window) {
+		return ERR_WINDOW_CREATION_FAILED;
+	}
+
+	glfwSetKeyCallback(window, keyCallback);
+
+	return ERR_OK;
 }
 
 bool checkValidationLayerSupport(void)
@@ -226,10 +258,10 @@ void populateDebugMessengerCreateInfo(
 	createInfo->pfnUserCallback = debugCallback;
 }
 
-VkResult createInstance(void)
+Error createInstance(void)
 {
 	if (ENABLE_VALIDATION_LAYERS && !checkValidationLayerSupport()) {
-		return 10;
+		return ERR_INSTANCE_CREATION_FAILED;
 	}
 
 	VkApplicationInfo appInfo = { 0 };
@@ -263,7 +295,9 @@ VkResult createInstance(void)
 	VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
 	arrfree(extensions);
 
-	return result == VK_SUCCESS ? 0 : 311;
+	return result == VK_SUCCESS
+		? ERR_OK
+		: ERR_INSTANCE_CREATION_FAILED;
 }
 
 VkResult createDebugUtilsMessengerEXT(
@@ -281,7 +315,7 @@ VkResult createDebugUtilsMessengerEXT(
 	return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
-err setupDebugMessenger(void)
+Error setupDebugMessenger(void)
 {
 	if (!ENABLE_VALIDATION_LAYERS) {
 		return ERR_OK;
@@ -293,7 +327,7 @@ err setupDebugMessenger(void)
 	VkResult res = createDebugUtilsMessengerEXT(instance, &createInfo,
 						    nullptr, &debugMessenger);
 	if (res != VK_SUCCESS) {
-		return 321;
+		return ERR_DEBUG_MESSENGER_CREATION_FAILED;
 	}
 	return ERR_OK;
 }
@@ -498,13 +532,12 @@ bool isDeviceDiscreteGPU(VkPhysicalDevice device)
 	       isDeviceSuitable(device);
 }
 
-err pickPhysicalDevice(void)
+Error pickPhysicalDevice(void)
 {
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-	/* No GPU found. */
 	if (deviceCount == 0) {
-		return 101;
+		return ERR_NO_GPU_FOUND;
 	}
 
 	VkPhysicalDevice *devices = nullptr;
@@ -532,15 +565,14 @@ err pickPhysicalDevice(void)
 
 	arrfree(devices);
 
-	/* No GPU found. */
 	if (physicalDevice == VK_NULL_HANDLE) {
-		return 199;
+		return ERR_NO_GPU_FOUND;
 	}
 
 	return ERR_OK;
 }
 
-err createSwapChain(void)
+Error createSwapChain(void)
 {
 	SwapChainSupportDetails swapChainSupport =
 		querySwapChainSupport(physicalDevice);
@@ -589,7 +621,7 @@ err createSwapChain(void)
 
 	if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) !=
 	    VK_SUCCESS) {
-		return 171;
+		return ERR_SWAP_CHAIN_CREATION_FAILED;
 	}
 
 	vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
@@ -602,7 +634,7 @@ err createSwapChain(void)
 	return ERR_OK;
 }
 
-err createLogicalDevice(void)
+Error createLogicalDevice(void)
 {
 	QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
@@ -646,7 +678,7 @@ err createLogicalDevice(void)
 
 	if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) !=
 	    VK_SUCCESS) {
-		return 55;
+		return ERR_LOGICAL_DEVICE_CREATION_FAILED;
 	}
 
 	vkGetDeviceQueue(device, indices.graphicsFamily.value, 0,
@@ -656,17 +688,17 @@ err createLogicalDevice(void)
 	return ERR_OK;
 }
 
-err createSurface(void)
+Error createSurface(void)
 {
 	if (glfwCreateWindowSurface(instance, window, nullptr, &surface) !=
 	    VK_SUCCESS) {
-		return 49;
+		return ERR_WINDOW_SURFACE_CREATION_FAILED;
 	}
 
 	return ERR_OK;
 }
 
-err createImageViews(void)
+Error createImageViews(void)
 {
 	int imageslength = arrlen(swapChainImages);
 	arrsetlen(swapChainImageViews, imageslength);
@@ -691,14 +723,14 @@ err createImageViews(void)
 
 		if (vkCreateImageView(device, &createInfo, nullptr,
 				      &swapChainImageViews[i]) != VK_SUCCESS) {
-			return 9998;
+			return ERR_IMAGE_VIEW_CREATION_FAILED;
 		}
 	}
 
 	return ERR_OK;
 }
 
-err createRenderPass(void)
+Error createRenderPass(void)
 {
 	VkAttachmentDescription colorAttachment = {0};
 	colorAttachment.format = swapChainImageFormat;
@@ -742,7 +774,7 @@ err createRenderPass(void)
 	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass)
 	    != VK_SUCCESS) {
 		/* Failed to create a render pass. */
-		return 444;
+		return ERR_RENDER_PASS_CREATION_FAILED;
 	}
 
 	return ERR_OK;
@@ -750,7 +782,7 @@ err createRenderPass(void)
 
 /* `code` must have padding of 3 extra bytes for uint32_t
  *  interpretation. */
-err createShaderModule(const char *code, size_t length, VkShaderModule *module)
+Error createShaderModule(const char *code, size_t length, VkShaderModule *module)
 {
 	VkShaderModuleCreateInfo createInfo = {0};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -759,7 +791,7 @@ err createShaderModule(const char *code, size_t length, VkShaderModule *module)
 
 	if (vkCreateShaderModule(device, &createInfo, nullptr, module)
 	    != VK_SUCCESS) {
-		return 109;
+		return ERR_SHADER_CREATION_FAILED;
 	}
 
 	return ERR_OK;
@@ -794,7 +826,7 @@ struct AttributeDescriptions vertexGetAttributeDescriptions(void)
 	return attributeDescriptions;
 }
 
-err createGraphicsPipeline(void)
+Error createGraphicsPipeline(void)
 {
 	const char vertCode[] = {
 #embed VULKAN_VERTEX_SHADER_PATH
@@ -814,7 +846,7 @@ err createGraphicsPipeline(void)
 	VkShaderModule vertShaderModule = nullptr;
 	VkShaderModule fragShaderModule = nullptr;
 	
-	err e = createShaderModule(vertCode, vertLength, &vertShaderModule);
+	Error e = createShaderModule(vertCode, vertLength, &vertShaderModule);
 	if (e != ERR_OK) {
 		return e;
 	}
@@ -968,7 +1000,7 @@ err createGraphicsPipeline(void)
 				   &pipelineLayout) != VK_SUCCESS) {
 		vkDestroyShaderModule(device, vertShaderModule, nullptr);
 		vkDestroyShaderModule(device, fragShaderModule, nullptr);
-		return 880;
+		return ERR_PIPELINE_LAYOUT_CREATION_FAILED;
 	}
 
 	VkGraphicsPipelineCreateInfo pipelineInfo = {0};
@@ -997,13 +1029,12 @@ err createGraphicsPipeline(void)
 	vkDestroyShaderModule(device, fragShaderModule, nullptr);
 
 	if (vkE != VK_SUCCESS) {
-		/* Failed to create the graphics pipeline. */
-		return 445;
+		return ERR_GRAPHICS_PIPELINE_CREATION_FAILED;
 	}
 	return ERR_OK;
 }
 
-err createFramebuffers(void)
+Error createFramebuffers(void)
 {
 	size_t swapChainImageViewsLength = arrlen(swapChainImageViews);
 	arrsetlen(swapChainFramebuffers, swapChainImageViewsLength);
@@ -1024,14 +1055,14 @@ err createFramebuffers(void)
 		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr,
 					&swapChainFramebuffers[i])
 		    != VK_SUCCESS) {
-			return 4443;
+			return ERR_FRAMEBUFFER_CREATION_FAILED;
 		}
 	}
 
 	return ERR_OK;
 }
 
-err createCommandPool(void)
+Error createCommandPool(void)
 {
 	QueueFamilyIndices queueFamilyIndices =
 		findQueueFamilies(physicalDevice);
@@ -1043,14 +1074,13 @@ err createCommandPool(void)
 
 	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool)
 	    != VK_SUCCESS) {
-		/* failed to create command pool. */
-		return 4400;
+		return ERR_COMMAND_POOL_CREATION_FAILED;
 	}
 
 	return ERR_OK;
 }
 
-err createCommandBuffers(void)
+Error createCommandBuffers(void)
 {
 	arrsetlen(commandBuffers, MAX_FRAMES_IN_FLIGHT);
 
@@ -1062,8 +1092,7 @@ err createCommandBuffers(void)
 
 	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers)
 	    != VK_SUCCESS) {
-		/* Failed to allocate command buffers. */
-		return 4401;
+		return ERR_COMMAND_BUFFER_ALLOCATION_FAILED;
 	}
 
 	return ERR_OK;
@@ -1086,7 +1115,7 @@ uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 	return (uint32_t)-1;
 }
 
-err createVertexBuffer(void)
+Error createVertexBuffer(void)
 {
 	VkBufferCreateInfo bufferInfo = {0};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1096,7 +1125,7 @@ err createVertexBuffer(void)
 
 	if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer)
 	    != VK_SUCCESS) {
-		return 8079;
+		return ERR_SHADER_CREATION_FAILED;
 	}
 
 	VkMemoryRequirements memRequirements = {0};
@@ -1107,7 +1136,7 @@ err createVertexBuffer(void)
 			       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
 			       | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	if (memoryTypeIndex == (uint32_t)-1) {
-		return 8078;
+		return ERR_SHADER_CREATION_FAILED;
 	}
 
 	VkMemoryAllocateInfo allocInfo = {0};
@@ -1117,7 +1146,7 @@ err createVertexBuffer(void)
 
 	if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory)
 	    != VK_SUCCESS) {
-		return 8077;
+		return ERR_SHADER_CREATION_FAILED;
 	}
 
 	vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
@@ -1130,7 +1159,7 @@ err createVertexBuffer(void)
 	return ERR_OK;
 }
 
-err recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+Error recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
 	VkCommandBufferBeginInfo beginInfo = {0};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1139,7 +1168,7 @@ err recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 
 	if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
 		/* Failed to begin recording command buffer. */
-		return 4402;
+		return ERR_COMMAND_BUFFER_RECORDING_FAILED;
 	}
 
 	VkRenderPassBeginInfo renderPassInfo = {0};
@@ -1184,13 +1213,13 @@ err recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 
 	if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
 		/* Failed to record command buffer. */
-		return 5959;
+		return ERR_COMMAND_BUFFER_RECORDING_FAILED;
 	}
 
 	return ERR_OK;
 }
 
-err createSyncObjects(void)
+Error createSyncObjects(void)
 {
 	arrsetlen(imageAvailableSemaphores, MAX_FRAMES_IN_FLIGHT);
 	arrsetlen(renderFinishedSemaphores, MAX_FRAMES_IN_FLIGHT);
@@ -1214,7 +1243,7 @@ err createSyncObjects(void)
 				     &inFlightFences[i])
 		    != VK_SUCCESS) {
 			/* Failed to create semaphores. */
-			return 6777;
+			return ERR_SEMAPHORE_CREATION_FAILED;
 		}
 	}
 
@@ -1235,7 +1264,7 @@ void cleanupSwapChain(void)
 	vkDestroySwapchainKHR(device, swapChain, nullptr);
 }
 
-err recreateSwapChain(void)
+Error recreateSwapChain(void)
 {
 	int width = 0;
 	int height = 0;
@@ -1249,7 +1278,7 @@ err recreateSwapChain(void)
 	vkDeviceWaitIdle(device);
 	cleanupSwapChain();
 
-	err e = ERR_OK;
+	Error e = ERR_OK;
 
 	e = createSwapChain();
 	if (e != ERR_OK) {
@@ -1269,7 +1298,7 @@ err recreateSwapChain(void)
 	return ERR_OK;
 }
 
-void cleanupVulkan(void)
+void cleanupGraphics(void)
 {
 	vkDeviceWaitIdle(device);
 	cleanupSwapChain();
@@ -1306,13 +1335,13 @@ void cleanupVulkan(void)
 	arrfree(inFlightFences);
 }
 
-err initVulkan(void)
+Error initGraphics(void)
 {
 	if (!glfwVulkanSupported()) {
 		return 3;
 	}
 
-	err e = createInstance();
+	Error e = createInstance();
 	if (e != ERR_OK) {
 		return e;
 	}
@@ -1385,7 +1414,7 @@ err initVulkan(void)
 	return ERR_OK;
 }
 
-err drawFrame(void) {
+Error drawFrame(void) {
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE,
 			UINT64_MAX);
 
@@ -1404,7 +1433,7 @@ err drawFrame(void) {
 	}
 	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 		/* Failed to acquire swap chain image. */
-		return 9706;
+		return ERR_SWAP_CHAIN_CREATION_FAILED;
 	}
 
 	/* Only reset the fence if we are submitting work. */
@@ -1437,8 +1466,7 @@ err drawFrame(void) {
 	if (vkQueueSubmit(graphicsQueue, 1, &submitInfo,
 			  inFlightFences[currentFrame])
 	    != VK_SUCCESS) {
-		/* Failed to submit draw command buffer. */
-		return 8493;
+		return ERR_COMMAND_BUFFER_DRAWING_FAILED;
 	}
 
 	VkPresentInfoKHR presentInfo = {0};
@@ -1458,17 +1486,21 @@ err drawFrame(void) {
 	if (result == VK_ERROR_OUT_OF_DATE_KHR
 	    || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
 		framebufferResized = false;
-		err e = recreateSwapChain();
+		Error e = recreateSwapChain();
 		if (e != ERR_OK) {
 			return e;
 		}
 	} else if (result != VK_SUCCESS) {
-		/* Failed to present swap chain image. */
-		return 9543;
+		return ERR_SWAP_CHAIN_PRESENTATION_FAILED;
 	}
 
 	currentFrame += 1;
 	currentFrame &= MAX_FRAMES_IN_FLIGHT - 1;
 
 	return ERR_OK;
+}
+
+void frameCleanup(void)
+{
+	vkDeviceWaitIdle(device);
 }

@@ -6,25 +6,11 @@
 #include "stb_ds.h"
 
 #ifdef VULKAN_ENABLED
-#define GLFW_INCLUDE_VULKAN
-#endif /* VULKAN_ENABLED */
-
-#include "GLFW/glfw3.h"
-
-enum: int {
-	WIDTH = 800,
-	HEIGHT = 600
-};
-
-#ifdef VULKAN_ENABLED
 #include "vulkan.c"
-extern VkDevice device;
-extern bool framebufferResized;
 #else /* !VULKAN_ENABLED */
 #include "opengl.c"
 #endif /* VULKAN_ENABLED */
 
-GLFWwindow *window;
 Arguments arguments; /* stb_ds.h string hashmap */
 
 /* The program expects each pair of arguments to be under the format: --option
@@ -51,77 +37,35 @@ void storeArguments(int argc, char **argv, char **error)
 
 	size_t len = 0;
 	char *option = nullptr;
+	sh_new_arena(arguments);
 	for (int i = 0; i < argc; i++) {
 		len = strlen(argv[i]);
-		// option
-		if (i % 2 == 0) {
-			if (len < 3) {
-				*error = "expected option: " USAGE;
-				return;
-			}
-			if (argv[i][0] != '-' || argv[i][1] != '-') {
-				*error = "unknown option: " USAGE;
-				return;
-			}
-			option = &argv[i][2];
-		} else {
-			shput(arguments, option, argv[i]);
+		/* if odd */
+		if (i & 1) {
+			shput(arguments, option, strdup(argv[i]));
+			continue;
 		}
+		if (unlikely(len < 3)) {
+			*error = "expected option: " USAGE;
+			return;
+		}
+		if (unlikely(argv[i][0] != '-' || argv[i][1] != '-')) {
+			*error = "unknown option: " USAGE;
+			return;
+		}
+		option = &argv[i][2];
 	}
 #undef USAGE
 }
 
-void framebufferResizeCallback(GLFWwindow *window, int width, int height)
+
+Error init()
 {
-#ifdef VULKAN_ENABLED
-	vulkanFramebufferResizeCallback(window, width, height);
-#else /* !VULKAN_ENABLED */
-	openglFramebufferResizeCallback(window, width, height);
-#endif /* VULKAN_ENABLED */
-}
-
-void keyCallback(GLFWwindow *window, int key, int scancode, int action,
-		 int mods)
-{
-	(void)scancode;
-	(void)mods;
-
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-		glfwSetWindowShouldClose(window, GLFW_TRUE);
-	}
-}
-
-err initWindow(void)
-{
-	if (!glfwInit()) {
-		return 1;
-	}
-
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	window = glfwCreateWindow(WIDTH, HEIGHT, "Laz's Engine", nullptr,
-				  nullptr);
-	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-
-	if (!window) {
-		return 2;
-	}
-
-	glfwSetKeyCallback(window, keyCallback);
-
-	return 0;
-}
-
-err init()
-{
-	err e = ERR_OK;
+	Error e = ERR_OK;
 
 	e = initWindow();
 	if (e == ERR_OK) {
-#ifdef VULKAN_ENABLED
-		e = initVulkan();
-#else /* !VULKAN_ENABLED */
-		e = initOpengl();
-#endif /* VULKAN_ENABLED */
+		e = initGraphics();
 	}
 
 	return e;
@@ -129,7 +73,7 @@ err init()
 
 void mainLoop(void)
 {
-	err e = ERR_OK;
+	Error e = ERR_OK;
 	do {
 		glfwPollEvents();
 		e = drawFrame();
@@ -137,18 +81,20 @@ void mainLoop(void)
 			return;
 		}
 	} while (!glfwWindowShouldClose(window));
-#ifdef VULKAN_ENABLED
-	vkDeviceWaitIdle(device);
-#endif /* VULKAN-ENABLED */
+	frameCleanup();
+}
+
+void freeArguments(void)
+{
+	for (int i = 0; i < shlen(arguments); i++) {
+		free(arguments[i].value);
+	}
+	shfree(arguments);
 }
 
 void cleanup(void)
 {
-#ifdef VULKAN_ENABLED
-	cleanupVulkan();
-#else /* !VULKAN-ENABLED */
-	cleanupOpengl();
-#endif /* VULKAN-ENABLED */
+	cleanupGraphics();
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
@@ -162,7 +108,7 @@ int main(int argc, char **argv)
 		return 622;
 	}
 
-	err e = init();
+	Error e = init();
 	if (e != ERR_OK) {
 		return e;
 	}

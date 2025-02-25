@@ -1,23 +1,41 @@
+#include "glad.h"
 #include "GLFW/glfw3.h"
 #include "common.h"
 
-void openglFramebufferResizeCallback(GLFWwindow *window, int width, int height)
+GLFWwindow *window;
+
+void keyCallback(GLFWwindow *window, int key, int scancode, int action,
+		 int mods)
+{
+	(void)scancode;
+	(void)mods;
+
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+		glfwSetWindowShouldClose(window, GLFW_TRUE);
+	}
+}
+
+void framebufferResizeCallback(GLFWwindow *window, int width, int height)
 {
 	(void)window;
 	(void)width;
 	(void)height;
 }
 
-err initOpengl(void)
+Error initGraphics(void)
 {
 	return ERR_OK;
 }
 
-err drawFrame(void)
+Error drawFrame(void)
 {
 	return ERR_OK;
 }
 
-void cleanupOpengl(void)
+void cleanupGraphics(void)
+{
+}
+
+void frameCleanup(void)
 {
 }
