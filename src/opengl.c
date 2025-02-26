@@ -2,7 +2,11 @@
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
+#include "cglm/cglm.h"
 #include "common.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include "glad/glad.c"
 
@@ -12,10 +16,12 @@ enum {
 
 GLchar infoLog[INFO_LOG_SIZE];
 GLFWwindow *window;
-GLuint triangleVBO;
-GLuint triangleVAO;
-GLuint triangleEBO;
+GLuint VBO;
+GLuint VAO;
+GLuint EBO;
 GLuint shaderProgram;
+GLuint texture0;
+GLuint texture1;
 
 uint32_t frameCount;
 double lastFrameTimeSec;
@@ -35,6 +41,12 @@ GLvoid setUniformInt(GLuint shaderID, const GLchar *name, GLint value)
 GLvoid setUniformFloat(GLuint shaderID, const GLchar *name, GLfloat value)
 {
 	glUniform1f(glGetUniformLocation(shaderID, name), value);
+}
+
+GLvoid setUniformMatrix(GLuint shaderID, const GLchar *name, mat4 value)
+{
+	glUniformMatrix4fv(glGetUniformLocation(shaderID, name), 1, GL_FALSE,
+			   (GLfloat*)value);
 }
 
 void keyCallback(GLFWwindow *window, int key, int scancode, int action,
@@ -176,45 +188,153 @@ Error compileShaderProgram(GLuint *shaderIDOut,
 	return ERR_OK;
 }
 
-void vertexBufferInit(void)
+GLvoid vertexBufferInit(void)
 {
-	GLfloat vertices[] = {
-		0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
-		-0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 1.0f,
-	}; 
-	/* GLuint indices[] = { */
-	/* 	0, 1, 3, */
-	/* 	1, 2, 3 */
+	static const GLfloat vertices[] = {
+		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+		0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+		0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+		0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+
+		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		-0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+		0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+
+		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+	};
+	/* static const GLfloat vertices[] = { */
+	/*	0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, */
+	/*	0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, */
+	/*	-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, */
+	/*	-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f */
+	/* }; */
+	/* static const GLuint indices[] = { */
+	/*	0, 1, 3, */
+	/*	1, 2, 3 */
 	/* }; */
 
 	/* VAO */
-	glGenVertexArrays(1, &triangleVAO);
-	glBindVertexArray(triangleVAO);
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
 
 	/* VBO */
-	glGenBuffers(1, &triangleVBO);
-	glBindBuffer(GL_ARRAY_BUFFER, triangleVBO);
+	glGenBuffers(1, &VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
 		     GL_STATIC_DRAW);
 
 	/* EBO */
-	/* glGenBuffers(1, &triangleEBO); */
-	/* glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleEBO); */
+	/* glGenBuffers(1, &EBO); */
+	/* glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO); */
 	/* glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, */
-	/* 					     GL_STATIC_DRAW); */
+	/*					     GL_STATIC_DRAW); */
 
 	/* Set position attribute. */
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat),
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
 			      nullptr);
 	glEnableVertexAttribArray(0);
+
 	/* Set color attribute. */
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat),
+	/* glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), */
+	/*		      (GLvoid*)(3 * sizeof(GLfloat))); */
+	/* glEnableVertexAttribArray(1); */
+
+	/* Set texture attribute. */
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
 			      (GLvoid*)(3 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(1);
-	
 
-	glBindVertexArray(triangleVAO);
+	glBindVertexArray(VAO);
+}
+
+Error bindTexture(GLuint *idOut, const char *path)
+{
+	int width = 0;
+	int height = 0;
+	int nrChannels = 0;
+	printf("%d\n", stbi_info(path, &width, &height, &nrChannels));
+	unsigned char *data = stbi_load(path, &width,
+					&height, &nrChannels, 0);
+	if (data == nullptr) {
+		return ERR_TEXTURE_LOADING_FAILED;
+	}
+
+	GLuint id = 0;
+
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_2D, id);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+			GL_NEAREST_MIPMAP_NEAREST);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB,
+		     GL_UNSIGNED_BYTE, data);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(data);
+
+	*idOut = id;
+
+	return ERR_OK;
+}
+
+Error textureInit(GLuint shaderID)
+{
+	stbi_set_flip_vertically_on_load(true);
+
+	Error e = bindTexture(&texture0, RESOURCE_PATH "/laz.png");
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = bindTexture(&texture1, RESOURCE_PATH "/blue.png");
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	glUseProgram(shaderID);
+	setUniformInt(shaderID, "laz", 0);
+	setUniformInt(shaderID, "blue", 1);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture0);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, texture1);
+
+	return ERR_OK;
 }
 
 Error initGraphics(void)
@@ -236,6 +356,13 @@ Error initGraphics(void)
 
 	vertexBufferInit();
 
+	e = textureInit(shaderProgram);
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	glEnable(GL_DEPTH_TEST);
+
 	return ERR_OK;
 }
 
@@ -255,14 +382,53 @@ Error init(void)
 	return e;
 }
 
+void bindTransformMatrices(void)
+{
+	/* mat4 model = GLM_MAT4_IDENTITY_INIT; */
+	/* glm_rotate(model, (float)glfwGetTime() * glm_rad(50.0f), */
+	/* 	   (vec3){0.5f, 1.0f, 0.0f}); */
+	mat4 view = GLM_MAT4_IDENTITY_INIT;
+	glm_translate(view, (vec3){0.0f, 0.0f, -3.0f});
+	mat4 projection = {0};
+	glm_perspective(glm_rad(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f,
+			100.0f, projection);
+
+	/* setUniformMatrix(shaderProgram, "model", model); */
+	setUniformMatrix(shaderProgram, "view", view);
+	setUniformMatrix(shaderProgram, "projection", projection);
+}
+
 Error drawFrame(void)
 {
-	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClearColor(0.28f, 0.16f, 0.22f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glUseProgram(shaderProgram);
+	glBindVertexArray(VAO);
 
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	bindTransformMatrices();
+
+	static vec3 cubePositions[] = {
+		{ 0.0f,  0.0f,  0.0f},
+		{ 2.0f,  5.0f, -15.0f},
+		{-1.5f, -2.2f, -2.5f},
+		{-3.8f, -2.0f, -12.3f},
+		{ 2.4f, -0.4f, -3.5f},
+		{-1.7f,  3.0f, -7.5f},
+		{ 1.3f, -2.0f, -2.5f},
+		{ 1.5f,  2.0f, -2.5f},
+		{ 1.5f,  0.2f, -1.5f},
+		{-1.3f,  1.0f, -1.5f},
+	};
+
+	for (GLuint i = 0; i < 10; i++) {
+		mat4 model = GLM_MAT4_IDENTITY_INIT;
+		glm_translate(model, cubePositions[i]);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		GLfloat angle = (float)glfwGetTime() * ((GLfloat)i + 1);
+		glm_rotate(model, glm_rad(angle), (vec3){1.0f, 0.3f, 0.5f});
+		setUniformMatrix(shaderProgram, "model", model);
+	}
 
 	return ERR_OK;
 }
@@ -318,7 +484,7 @@ void mainLoop(void)
 		}
 
 		glfwSwapBuffers(window);
-		
+
 		frameCount++;
 
 		/* Print FPS every 64 frames */
@@ -329,6 +495,9 @@ void mainLoop(void)
 
 void cleanupGraphics(void)
 {
+	glDeleteVertexArrays(1, &VAO);
+	glDeleteBuffers(1, &VBO);
+	/* glDeleteBuffers(1, &EBO); */
 }
 
 void cleanup(void)

@@ -1,8 +1,16 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "config.h"
+
+/* CGLM requires a specific alignment for vec4 and mat4 to utilize SIMD */
+#define GLM_ALLOCN(T, COUNT) _Generic((T){0},			  \
+	vec4: aligned_alloc(alignof(vec4), sizeof(vec4) * COUNT), \
+	mat4: aligned_alloc(alignof(mat4), sizeof(mat4) * COUNT), \
+	default: malloc(sizeof(T) * COUNT))
+#define GLM_ALLOC(T) GLM_ALLOCN(T, 1)
 
 #define ALIGN(x) __attribute__((aligned(x)))
 
@@ -19,6 +27,7 @@ typedef enum Error {
 	ERR_INVALID_ARGUMENTS,
 	ERR_SHADER_CREATION_FAILED,
 	ERR_WINDOW_CREATION_FAILED,
+	ERR_TEXTURE_LOADING_FAILED,
 
 	/* OpenGL */
 	ERR_GLAD_INITIALIZATION_FAILED,
@@ -66,6 +75,8 @@ void printError(Error err)
 		= "shader creation failed",
 		[ERR_WINDOW_CREATION_FAILED]
 		= "window creation failed",
+		[ERR_TEXTURE_LOADING_FAILED]
+		= "texture loading failed",
 
 		/* OpenGL */
 		[ERR_GLAD_INITIALIZATION_FAILED]
