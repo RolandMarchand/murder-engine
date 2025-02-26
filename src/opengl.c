@@ -8,6 +8,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define CLAMP(X, MIN, MAX)					\
+	((X) >= (MAX) ? (MAX) : ((X) <= (MIN) ? (MIN) : (X)))
+
 #include "glad/glad.c"
 
 enum {
@@ -28,9 +31,12 @@ float lastFrameTimeSec;
 float currentFrameTimeSec;
 float deltaTimeSec;
 
-vec3 cameraPos = {0.0f, 0.0f, 3.0f};
-vec3 cameraFront = {0.0f,  0.0f, -1.0f};
-vec3 cameraUp = {0.0f,  1.0f,  0.0f};
+static constexpr float cameraFOVMin = 0.26f;
+static constexpr float cameraFOVMax = 1.75f;
+
+float cameraFOV = M_PI / 2.0f;
+vec3 cameraEuler;
+vec4 cameraPos = {0.0f, 0.0f, 3.0f};
 
 GLvoid setUniformBool(GLuint shaderID, const GLchar *name, GLboolean value)
 {
@@ -67,6 +73,39 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos)
 {
+	(void)window;
+
+	static float lastX = NAN;
+	static float lastY = NAN;
+
+	if (isnan(lastX) || isnan(lastY)) {
+		lastX = (float)xpos;
+		lastY = (float)ypos;
+	}
+
+	float xoffset = (float)xpos - lastX;
+	float yoffset = -lastY + (float)ypos;
+	lastX = (float)xpos;
+	lastY = (float)ypos;
+
+	constexpr float sensitivity = 0.01f;
+	xoffset *= sensitivity;
+	yoffset *= sensitivity;
+
+	cameraEuler[0] += yoffset;
+	cameraEuler[1] += xoffset;
+
+	cameraEuler[0] =
+		CLAMP(cameraEuler[0], -(float)M_PI / 3.0f, (float)M_PI / 3.0f);
+}
+
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	(void)window;
+	(void)xoffset;
+
+	cameraFOV -= (float)yoffset * 0.25f;
+	cameraFOV = CLAMP(cameraFOV, cameraFOVMin, cameraFOVMax);
 }
 
 void framebufferResizeCallback(GLFWwindow *window, int width, int height)
@@ -99,6 +138,7 @@ Error initWindow(void)
 	glfwSwapInterval(0);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	glfwSetCursorPosCallback(window, mouseCallback);  
+	glfwSetScrollCallback(window, scrollCallback);
 
 	return ERR_OK;
 }
@@ -374,7 +414,7 @@ Error init(void)
 void bindTransformMatrices(void)
 {
 	mat4 projection = {0};
-	glm_perspective(glm_rad(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f,
+	glm_perspective(cameraFOV, (float)WIDTH / (float)HEIGHT, 0.1f,
 			100.0f, projection);
 
 	setUniformMatrix(shaderProgram, "projection", projection);
@@ -383,7 +423,8 @@ void bindTransformMatrices(void)
 void drawCamera(void)
 {
 	mat4 view = {0};
-	glm_lookat(cameraPos, cameraFront, cameraUp, view);
+	glm_euler(cameraEuler, view);
+	glm_translate_to(view, cameraPos, view);
 	setUniformMatrix(shaderProgram, "view", view);
 }
 
@@ -459,40 +500,26 @@ void printFPS(void)
 	lastSecondFrameCount = frameCount;
 }
 
+void processCamera(GLFWwindow *window)
+{
+	constexpr float cameraSpeed = 10.0f;
+
+	vec3 velocity = {0};
+
+	velocity[0] -= (float)(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
+	velocity[0] += (float)(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
+	velocity[2] += (float)(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
+	velocity[2] -= (float)(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS);
+
+	glm_vec3_rotate(velocity, -cameraEuler[1], GLM_YUP);
+	glm_vec3_scale(velocity, cameraSpeed * deltaTimeSec, velocity);
+	glm_vec3_add(velocity, cameraPos, cameraPos);
+}
+
 void processInput(GLFWwindow *window)
 {
 	glfwPollEvents();
-
-	constexpr float cameraSpeed = 10.0f;
-
-	vec3 tmp = {0};
-
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		glm_vec3_scale(GLM_ZUP, -cameraSpeed * deltaTimeSec, tmp);
-		glm_vec3_add(tmp, cameraPos, cameraPos);
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		glm_vec3_scale(GLM_ZUP, -cameraSpeed * deltaTimeSec, tmp);
-		glm_vec3_sub(cameraPos, tmp, cameraPos);
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		glm_vec3_cross(cameraUp, GLM_ZUP, tmp);
-		glm_vec3_normalize(tmp);
-		glm_vec3_scale(tmp, cameraSpeed * deltaTimeSec, tmp);
-		glm_vec3_sub(cameraPos, tmp, cameraPos);
-		glm_vec3_sub(cameraFront, tmp, cameraFront);
-	}
-
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-		glm_vec3_cross(cameraUp, GLM_ZUP, tmp);
-		glm_vec3_normalize(tmp);
-		glm_vec3_scale(tmp, cameraSpeed * deltaTimeSec, tmp);
-		glm_vec3_add(cameraPos, tmp, cameraPos);
-		glm_vec3_add(cameraFront, tmp, cameraFront);
-		
-	}
+	processCamera(window);
 }
 
 void mainLoop(void)
