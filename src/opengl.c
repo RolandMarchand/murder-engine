@@ -1,4 +1,4 @@
-#include <time.h>
+#include <math.h>
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -24,9 +24,13 @@ GLuint texture0;
 GLuint texture1;
 
 uint32_t frameCount;
-double lastFrameTimeSec;
-double currentFrameTimeSec;
-double deltaTimeSec;
+float lastFrameTimeSec;
+float currentFrameTimeSec;
+float deltaTimeSec;
+
+vec3 cameraPos = {0.0f, 0.0f, 3.0f};
+vec3 cameraFront = {0.0f,  0.0f, -1.0f};
+vec3 cameraUp = {0.0f,  1.0f,  0.0f};
 
 GLvoid setUniformBool(GLuint shaderID, const GLchar *name, GLboolean value)
 {
@@ -58,6 +62,11 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
 	}
+
+}
+
+void mouseCallback(GLFWwindow* window, double xpos, double ypos)
+{
 }
 
 void framebufferResizeCallback(GLFWwindow *window, int width, int height)
@@ -88,6 +97,8 @@ Error initWindow(void)
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSwapInterval(0);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetCursorPosCallback(window, mouseCallback);  
 
 	return ERR_OK;
 }
@@ -233,16 +244,6 @@ GLvoid vertexBufferInit(void)
 		-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
 		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 	};
-	/* static const GLfloat vertices[] = { */
-	/*	0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, */
-	/*	0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, */
-	/*	-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, */
-	/*	-0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f */
-	/* }; */
-	/* static const GLuint indices[] = { */
-	/*	0, 1, 3, */
-	/*	1, 2, 3 */
-	/* }; */
 
 	/* VAO */
 	glGenVertexArrays(1, &VAO);
@@ -254,21 +255,10 @@ GLvoid vertexBufferInit(void)
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
 		     GL_STATIC_DRAW);
 
-	/* EBO */
-	/* glGenBuffers(1, &EBO); */
-	/* glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO); */
-	/* glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, */
-	/*					     GL_STATIC_DRAW); */
-
 	/* Set position attribute. */
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
 			      nullptr);
 	glEnableVertexAttribArray(0);
-
-	/* Set color attribute. */
-	/* glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), */
-	/*		      (GLvoid*)(3 * sizeof(GLfloat))); */
-	/* glEnableVertexAttribArray(1); */
 
 	/* Set texture attribute. */
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
@@ -283,7 +273,6 @@ Error bindTexture(GLuint *idOut, const char *path)
 	int width = 0;
 	int height = 0;
 	int nrChannels = 0;
-	printf("%d\n", stbi_info(path, &width, &height, &nrChannels));
 	unsigned char *data = stbi_load(path, &width,
 					&height, &nrChannels, 0);
 	if (data == nullptr) {
@@ -384,30 +373,22 @@ Error init(void)
 
 void bindTransformMatrices(void)
 {
-	/* mat4 model = GLM_MAT4_IDENTITY_INIT; */
-	/* glm_rotate(model, (float)glfwGetTime() * glm_rad(50.0f), */
-	/* 	   (vec3){0.5f, 1.0f, 0.0f}); */
-	mat4 view = GLM_MAT4_IDENTITY_INIT;
-	glm_translate(view, (vec3){0.0f, 0.0f, -3.0f});
 	mat4 projection = {0};
 	glm_perspective(glm_rad(45.0f), (float)WIDTH / (float)HEIGHT, 0.1f,
 			100.0f, projection);
 
-	/* setUniformMatrix(shaderProgram, "model", model); */
-	setUniformMatrix(shaderProgram, "view", view);
 	setUniformMatrix(shaderProgram, "projection", projection);
 }
 
-Error drawFrame(void)
+void drawCamera(void)
 {
-	glClearColor(0.28f, 0.16f, 0.22f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	mat4 view = {0};
+	glm_lookat(cameraPos, cameraFront, cameraUp, view);
+	setUniformMatrix(shaderProgram, "view", view);
+}
 
-	glUseProgram(shaderProgram);
-	glBindVertexArray(VAO);
-
-	bindTransformMatrices();
-
+void drawScene(void)
+{
 	static vec3 cubePositions[] = {
 		{ 0.0f,  0.0f,  0.0f},
 		{ 2.0f,  5.0f, -15.0f},
@@ -429,6 +410,21 @@ Error drawFrame(void)
 		glm_rotate(model, glm_rad(angle), (vec3){1.0f, 0.3f, 0.5f});
 		setUniformMatrix(shaderProgram, "model", model);
 	}
+}
+
+Error drawFrame(void)
+{
+	glClearColor(0.28f, 0.16f, 0.22f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glUseProgram(shaderProgram);
+	glBindVertexArray(VAO);
+
+	bindTransformMatrices();
+
+	drawCamera();
+
+	drawScene();
 
 	return ERR_OK;
 }
@@ -439,13 +435,8 @@ void frameCleanup(void)
 
 void recordTime(void)
 {
-	static struct timespec ts;
-	if (timespec_get(&ts, TIME_UTC) == 0) {
-		return;
-	}
 	lastFrameTimeSec = currentFrameTimeSec;
-	currentFrameTimeSec =
-		(double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
+	currentFrameTimeSec = (float)glfwGetTime();
 	deltaTimeSec = currentFrameTimeSec - lastFrameTimeSec;
 }
 
@@ -457,7 +448,7 @@ void printFPS(void)
 	static uint32_t lastSecondFrameCount;
 
 	double timeElapsedSec = currentFrameTimeSec - lastSecondTimeSec;
-	if (currentFrameTimeSec - lastSecondTimeSec < 1.0) {
+	if (timeElapsedSec < 1.0) {
 		return;
 	}
 
@@ -468,6 +459,42 @@ void printFPS(void)
 	lastSecondFrameCount = frameCount;
 }
 
+void processInput(GLFWwindow *window)
+{
+	glfwPollEvents();
+
+	constexpr float cameraSpeed = 10.0f;
+
+	vec3 tmp = {0};
+
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+		glm_vec3_scale(GLM_ZUP, -cameraSpeed * deltaTimeSec, tmp);
+		glm_vec3_add(tmp, cameraPos, cameraPos);
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+		glm_vec3_scale(GLM_ZUP, -cameraSpeed * deltaTimeSec, tmp);
+		glm_vec3_sub(cameraPos, tmp, cameraPos);
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		glm_vec3_cross(cameraUp, GLM_ZUP, tmp);
+		glm_vec3_normalize(tmp);
+		glm_vec3_scale(tmp, cameraSpeed * deltaTimeSec, tmp);
+		glm_vec3_sub(cameraPos, tmp, cameraPos);
+		glm_vec3_sub(cameraFront, tmp, cameraFront);
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+		glm_vec3_cross(cameraUp, GLM_ZUP, tmp);
+		glm_vec3_normalize(tmp);
+		glm_vec3_scale(tmp, cameraSpeed * deltaTimeSec, tmp);
+		glm_vec3_add(cameraPos, tmp, cameraPos);
+		glm_vec3_add(cameraFront, tmp, cameraFront);
+		
+	}
+}
+
 void mainLoop(void)
 {
 	Error e = ERR_OK;
@@ -475,7 +502,7 @@ void mainLoop(void)
 	do {
 		recordTime();
 
-		glfwPollEvents();
+		processInput(window);
 
 		e = drawFrame();
 		if (e != ERR_OK) {
@@ -497,7 +524,6 @@ void cleanupGraphics(void)
 {
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
-	/* glDeleteBuffers(1, &EBO); */
 }
 
 void cleanup(void)
