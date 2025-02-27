@@ -1,7 +1,15 @@
 #include <stdio.h>
+#include <string.h>
 
+#include "cglm/cglm.h"
 #include "common.h"
 #include "wren/wren.h"
+
+#define WREN_MODULE_NAME "main"
+
+enum {
+	SLOT_COUNT = 8,
+};
 
 WrenVM *vm;
 WrenHandle *mainClass;
@@ -10,6 +18,7 @@ WrenHandle *updateHandle;
 WrenHandle *cleanupHandle;
 
 extern float deltaTimeSec;
+extern vec3 cameraPos;
 
 static const char initScriptCode[] = {
 #embed "scripts/init.wren"
@@ -39,25 +48,95 @@ void errorFn(WrenVM* vm, WrenErrorType errorType,
 	}
 }
 
-Error scriptLoad(void)
+void getPlayerPosition(WrenVM* vm)
 {
-	WrenConfiguration config;
-	wrenInitConfiguration(&config);
-	config.writeFn = &writeFn;
-	config.errorFn = errorFn;
-	vm = wrenNewVM(&config);
-	WrenInterpretResult result = wrenInterpret(
-		vm,
-		"main",
-		initScriptCode);
+	wrenSetSlotNewList(vm, 0);
 
-	if (result != WREN_RESULT_SUCCESS) {
-		return ERR_SCRIPT_LOADING_FAILED;
+	for (int i = 0; i < 3; i++) {
+		wrenSetSlotDouble(vm, 1, cameraPos[i]);
+		wrenInsertInList(vm, 0, i, 1);
+	}
+}
+
+void setPlayerPosition(WrenVM* vm)
+{
+	if (wrenGetSlotType(vm, 1) != WREN_TYPE_LIST
+	    || wrenGetListCount(vm, 1) < 3) {
+		wrenSetSlotString(vm, 0, "Cannot set a position that is not [num, num, num].");
+		wrenAbortFiber(vm, 0);
+		return;
 	}
 
-	wrenEnsureSlots(vm, 1);
+	wrenGetListElement(vm, 1, 0, 2);
+	wrenGetListElement(vm, 1, 1, 3);
+	wrenGetListElement(vm, 1, 2, 4);
 
-	wrenGetVariable(vm, "main", "Main", 0);
+	if (wrenGetSlotType(vm, 2) != WREN_TYPE_NUM
+	    || wrenGetSlotType(vm, 3) != WREN_TYPE_NUM
+	    || wrenGetSlotType(vm, 4) != WREN_TYPE_NUM) {
+		wrenSetSlotString(vm, 0, "Cannot set a position that is not [num, num, num].");
+		wrenAbortFiber(vm, 0);
+		return;
+	}
+
+	cameraPos[0] = (float)wrenGetSlotDouble(vm, 2);
+	cameraPos[1] = (float)wrenGetSlotDouble(vm, 3);
+	cameraPos[2] = (float)wrenGetSlotDouble(vm, 4);
+}
+
+void playerAllocate(WrenVM *vm)
+{
+	wrenSetSlotNewForeign(vm, 0, 0, 0);
+}
+
+void playerFinalize(void *data)
+{
+	(void)data;
+}
+
+WrenForeignClassMethods bindForeignClass(
+    WrenVM* vm, const char* module, const char* className)
+{
+	(void)vm;
+	(void)module;
+	(void)className;
+
+	WrenForeignClassMethods methods = {};
+
+	if (strcmp(className, "Player") == 0) {
+		methods.allocate = playerAllocate;
+		methods.finalize = playerFinalize;
+	}
+
+	return methods;
+}
+
+WrenForeignMethodFn bindForeignMethod(WrenVM* vm, const char* module,
+    const char* className, bool isStatic, const char* signature)
+{
+	(void)vm;
+	(void)module;
+
+	if (strcmp(className, "Player") != 0) {
+		return nullptr;
+	}
+
+	if (isStatic && strcmp(signature, "getPos") == 0) {
+		return getPlayerPosition;
+	}
+
+	if (isStatic && strcmp(signature, "setPos=(_)") == 0) {
+		return setPlayerPosition;
+	}
+
+	return nullptr;
+}
+
+Error scriptInit(void)
+{
+	wrenEnsureSlots(vm, SLOT_COUNT);
+
+	wrenGetVariable(vm, WREN_MODULE_NAME, "Main", 0);
 	mainClass = wrenGetSlotHandle(vm, 0);
 
 	initHandle = wrenMakeCallHandle(vm, "init()");
@@ -65,18 +144,40 @@ Error scriptLoad(void)
 	cleanupHandle = wrenMakeCallHandle(vm, "cleanup()");
 
 	wrenSetSlotHandle(vm, 0, mainClass);
-	result = wrenCall(vm, initHandle);
+	return wrenCall(vm, initHandle) == WREN_RESULT_SUCCESS
+		? ERR_OK
+		: ERR_SCRIPT_INITIALIZATION_FAILED;
+}
+
+WrenConfiguration getConfig(void)
+{
+	WrenConfiguration config;
+	wrenInitConfiguration(&config);
+	config.writeFn = writeFn;
+	config.errorFn = errorFn;
+	config.bindForeignClassFn = bindForeignClass;
+	config.bindForeignMethodFn = bindForeignMethod;
+	return config;
+}
+
+Error scriptLoad(void)
+{
+	WrenConfiguration config = getConfig();
+	vm = wrenNewVM(&config);
+	WrenInterpretResult result = wrenInterpret(
+		vm,
+		WREN_MODULE_NAME,
+		initScriptCode);
 
 	if (result != WREN_RESULT_SUCCESS) {
-		return ERR_SCRIPT_INITIALIZATION_FAILED;
+		return ERR_SCRIPT_LOADING_FAILED;
 	}
 
-	return ERR_OK;
+	return scriptInit();
 }
 
 Error scriptUpdate(void)
 {
-	wrenEnsureSlots(vm, 2);
 	wrenSetSlotHandle(vm, 0, mainClass);
 	wrenSetSlotDouble(vm, 1, (double)deltaTimeSec);
 
@@ -87,7 +188,6 @@ Error scriptUpdate(void)
 
 Error scriptUnload(void)
 {
-	wrenEnsureSlots(vm, 1);
 	wrenSetSlotHandle(vm, 0, mainClass);
 
 	Error e = wrenCall(vm, cleanupHandle) == WREN_RESULT_SUCCESS

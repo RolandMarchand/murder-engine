@@ -35,7 +35,7 @@ static constexpr float cameraFOVMax = 1.75f;
 
 float cameraFOV = M_PI / 2.0f;
 vec3 cameraEuler;
-vec4 cameraPos = {0.0f, 0.0f, 3.0f};
+vec3 cameraPos = {0.0f, 0.0f, 3.0f};
 
 GLvoid setUniformBool(GLuint shaderID, const GLchar *name, GLboolean value)
 {
@@ -60,7 +60,7 @@ GLvoid setUniformMatrix(GLuint shaderID, const GLchar *name, mat4 value)
 
 void processCamera(GLFWwindow *window)
 {
-	vec3 velocity = {0};
+	vec3 velocity = {};
 
 	velocity[0] -= (float)(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
 	velocity[0] += (float)(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
@@ -417,7 +417,7 @@ Error initGraphics(void)
 
 void bindTransformMatrices(void)
 {
-	mat4 projection = {0};
+	mat4 projection = {};
 	glm_perspective(cameraFOV, (float)WIDTH / (float)HEIGHT, 0.1f,
 			100.0f, projection);
 
@@ -426,7 +426,7 @@ void bindTransformMatrices(void)
 
 void drawCamera(void)
 {
-	mat4 view = {0};
+	mat4 view = {};
 	glm_euler(cameraEuler, view);
 	glm_translate_to(view, cameraPos, view);
 	setUniformMatrix(shaderProgram, "view", view);

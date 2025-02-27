@@ -732,7 +732,7 @@ Error createImageViews(void)
 
 Error createRenderPass(void)
 {
-	VkAttachmentDescription colorAttachment = {0};
+	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = swapChainImageFormat;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -742,23 +742,23 @@ Error createRenderPass(void)
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-	VkAttachmentReference colorAttachmentRef = {0};
+	VkAttachmentReference colorAttachmentRef = {};
 	colorAttachmentRef.attachment = 0;
 	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-	VkSubpassDescription subpass = {0};
+	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &colorAttachmentRef;
 
-	VkRenderPassCreateInfo renderPassInfo = {0};
+	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.attachmentCount = 1;
 	renderPassInfo.pAttachments = &colorAttachment;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 
-	VkSubpassDependency dependency = {0};
+	VkSubpassDependency dependency = {};
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependency.dstSubpass = 0;
 	dependency.srcStageMask =
@@ -784,7 +784,7 @@ Error createRenderPass(void)
  *  interpretation. */
 Error createShaderModule(const char *code, size_t length, VkShaderModule *module)
 {
-	VkShaderModuleCreateInfo createInfo = {0};
+	VkShaderModuleCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	createInfo.codeSize = length;
 	createInfo.pCode = (uint32_t *)code;
@@ -799,7 +799,7 @@ Error createShaderModule(const char *code, size_t length, VkShaderModule *module
 
 VkVertexInputBindingDescription vertexGetBindingDescription(void)
 {
-	VkVertexInputBindingDescription bindingDescription = {0};
+	VkVertexInputBindingDescription bindingDescription = {};
 
 	bindingDescription.binding = 0;
 	bindingDescription.stride = sizeof(Vertex);
@@ -810,7 +810,7 @@ VkVertexInputBindingDescription vertexGetBindingDescription(void)
 
 struct AttributeDescriptions vertexGetAttributeDescriptions(void)
 {
-	struct AttributeDescriptions attributeDescriptions = {0};
+	struct AttributeDescriptions attributeDescriptions = {};
 
 	attributeDescriptions.descriptions[0].binding = 0;
 	attributeDescriptions.descriptions[0].location = 0;
@@ -855,14 +855,14 @@ Error createGraphicsPipeline(void)
 		return e;
 	}
 
-	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {0};
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
 	vertShaderStageInfo.module = vertShaderModule;
 	vertShaderStageInfo.pName = "main";
 
-	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {0};
+	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
 	fragShaderStageInfo.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -880,7 +880,7 @@ Error createGraphicsPipeline(void)
 	struct AttributeDescriptions attributeDescriptions
 		= vertexGetAttributeDescriptions();
 
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {0};
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -891,14 +891,14 @@ Error createGraphicsPipeline(void)
 		= attributeDescriptions.descriptions;
 
 	/* Input assembly */
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {0};
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	inputAssembly.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssembly.primitiveRestartEnable = VK_FALSE;
 
 	/* Viewport and scissors */
-	VkViewport viewport = {0};
+	VkViewport viewport = {};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
 	viewport.width = (float)swapChainExtent.width;
@@ -906,7 +906,7 @@ Error createGraphicsPipeline(void)
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
-	VkRect2D scissor = {0};
+	VkRect2D scissor = {};
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
 	scissor.extent = swapChainExtent;
@@ -916,14 +916,14 @@ Error createGraphicsPipeline(void)
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR
 	};
-	VkPipelineDynamicStateCreateInfo dynamicState = {0};
+	VkPipelineDynamicStateCreateInfo dynamicState = {};
 	dynamicState.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicState.dynamicStateCount =
 		sizeof(dynamicStates) / sizeof(VkDynamicState);
 	dynamicState.pDynamicStates = dynamicStates;
 
-	VkPipelineViewportStateCreateInfo viewportState = {0};
+	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportState.viewportCount = 1;
@@ -933,7 +933,7 @@ Error createGraphicsPipeline(void)
 	viewportState.pScissors = &scissor;
 
 	/* Rasterization */
-	VkPipelineRasterizationStateCreateInfo rasterizer = {0};
+	VkPipelineRasterizationStateCreateInfo rasterizer = {};
 	rasterizer.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizer.depthClampEnable = VK_FALSE;
@@ -948,7 +948,7 @@ Error createGraphicsPipeline(void)
 	rasterizer.depthBiasSlopeFactor = 0.0f;
 
 	/* Multisampling */
-	VkPipelineMultisampleStateCreateInfo multisampling = {0};
+	VkPipelineMultisampleStateCreateInfo multisampling = {};
 	multisampling.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	multisampling.sampleShadingEnable = VK_FALSE;
@@ -962,7 +962,7 @@ Error createGraphicsPipeline(void)
 	/* ¯\_(ツ)_/¯ */
 
 	/* Color bending */
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = {0};
+	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT
 		| VK_COLOR_COMPONENT_G_BIT
 		| VK_COLOR_COMPONENT_B_BIT
@@ -975,7 +975,7 @@ Error createGraphicsPipeline(void)
 	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
-	VkPipelineColorBlendStateCreateInfo colorBlending = {0};
+	VkPipelineColorBlendStateCreateInfo colorBlending = {};
 	colorBlending.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	colorBlending.logicOpEnable = VK_FALSE;
@@ -988,7 +988,7 @@ Error createGraphicsPipeline(void)
 	colorBlending.blendConstants[3] = 0.0f; // Optional
 
 	/* Pipeline Layout */
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {0};
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType =
 		VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 0;
@@ -1003,7 +1003,7 @@ Error createGraphicsPipeline(void)
 		return ERR_PIPELINE_LAYOUT_CREATION_FAILED;
 	}
 
-	VkGraphicsPipelineCreateInfo pipelineInfo = {0};
+	VkGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipelineInfo.stageCount = 2;
 	pipelineInfo.pStages = shaderStages;
@@ -1042,7 +1042,7 @@ Error createFramebuffers(void)
 		VkImageView attachments[] = {
 			swapChainImageViews[i]
 		};
-		VkFramebufferCreateInfo framebufferInfo = {0};
+		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType =
 			VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = renderPass;
@@ -1067,7 +1067,7 @@ Error createCommandPool(void)
 	QueueFamilyIndices queueFamilyIndices =
 		findQueueFamilies(physicalDevice);
 
-	VkCommandPoolCreateInfo poolInfo = {0};
+	VkCommandPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value;
@@ -1084,7 +1084,7 @@ Error createCommandBuffers(void)
 {
 	arrsetlen(commandBuffers, MAX_FRAMES_IN_FLIGHT);
 
-	VkCommandBufferAllocateInfo allocInfo = {0};
+	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.commandPool = commandPool;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -1117,7 +1117,7 @@ uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 
 Error createVertexBuffer(void)
 {
-	VkBufferCreateInfo bufferInfo = {0};
+	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferInfo.size = sizeof(vertices);
 	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -1128,7 +1128,7 @@ Error createVertexBuffer(void)
 		return ERR_SHADER_CREATION_FAILED;
 	}
 
-	VkMemoryRequirements memRequirements = {0};
+	VkMemoryRequirements memRequirements = {};
 	vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
 
 	uint32_t memoryTypeIndex =
@@ -1139,7 +1139,7 @@ Error createVertexBuffer(void)
 		return ERR_SHADER_CREATION_FAILED;
 	}
 
-	VkMemoryAllocateInfo allocInfo = {0};
+	VkMemoryAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = memoryTypeIndex;
@@ -1161,7 +1161,7 @@ Error createVertexBuffer(void)
 
 Error recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
-	VkCommandBufferBeginInfo beginInfo = {0};
+	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = 0;
 	beginInfo.pInheritanceInfo = nullptr;
@@ -1171,7 +1171,7 @@ Error recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 		return ERR_COMMAND_BUFFER_RECORDING_FAILED;
 	}
 
-	VkRenderPassBeginInfo renderPassInfo = {0};
+	VkRenderPassBeginInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderPass = renderPass;
 	renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
@@ -1189,10 +1189,10 @@ Error recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 			  graphicsPipeline);
 
 	VkBuffer vertexBuffers[] = {vertexBuffer};
-	VkDeviceSize offsets[] = {0};
+	VkDeviceSize offsets[] = {};
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-	VkViewport viewport = {0};
+	VkViewport viewport = {};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
 	viewport.width = (float)swapChainExtent.width;
@@ -1201,7 +1201,7 @@ Error recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 	viewport.maxDepth = 1.0f;
 	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-	VkRect2D scissor = {0};
+	VkRect2D scissor = {};
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
 	scissor.extent = swapChainExtent;
@@ -1225,10 +1225,10 @@ Error createSyncObjects(void)
 	arrsetlen(renderFinishedSemaphores, MAX_FRAMES_IN_FLIGHT);
 	arrsetlen(inFlightFences, MAX_FRAMES_IN_FLIGHT);
 
-	VkSemaphoreCreateInfo semaphoreInfo = {0};
+	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	VkFenceCreateInfo fenceInfo = {0};
+	VkFenceCreateInfo fenceInfo = {};
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
@@ -1442,7 +1442,7 @@ Error drawFrame(void) {
 	vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 	recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
-	VkSubmitInfo submitInfo = {0};
+	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
 	VkSemaphore waitSemaphores[] = {
@@ -1469,7 +1469,7 @@ Error drawFrame(void) {
 		return ERR_COMMAND_BUFFER_DRAWING_FAILED;
 	}
 
-	VkPresentInfoKHR presentInfo = {0};
+	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pWaitSemaphores = signalSemaphores;
