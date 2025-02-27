@@ -10,6 +10,7 @@
 #else /* !VULKAN_ENABLED */
 #include "opengl.c"
 #endif /* VULKAN_ENABLED */
+#include "script.c"
 
 Arguments arguments; /* stb_ds.h string hashmap */
 
@@ -67,6 +68,93 @@ void freeArguments(void)
 	shfree(arguments);
 }
 
+void recordTime(void)
+{
+	lastFrameTimeSec = currentFrameTimeSec;
+	currentFrameTimeSec = (float)glfwGetTime();
+	deltaTimeSec = currentFrameTimeSec - lastFrameTimeSec;
+}
+
+/* Print current FPS to stdout. Does nothing if it's been less than a second
+ * since the last print. */
+void printFPS(void)
+{
+	static double lastSecondTimeSec;
+	static uint32_t lastSecondFrameCount;
+
+	double timeElapsedSec = currentFrameTimeSec - lastSecondTimeSec;
+	if (timeElapsedSec < 1.0) {
+		return;
+	}
+
+	printf("FPS: %.0f\n", (frameCount - lastSecondFrameCount)
+	       / timeElapsedSec);
+
+	lastSecondTimeSec = currentFrameTimeSec;
+	lastSecondFrameCount = frameCount;
+}
+
+Error init(void)
+{
+	Error e = ERR_OK;
+
+	e = initWindow();
+	if (e != ERR_OK) {
+		return e;
+	}
+	
+	e = initGraphics();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = scriptLoad();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	return e;
+}
+
+void cleanup(void)
+{
+	cleanupGraphics();
+	cleanupWindow();
+
+	Error e = scriptUnload();
+	if (e != ERR_OK) {
+		printError(e);
+	}
+}
+
+void mainLoop()
+{
+	Error e = ERR_OK;
+
+	do {
+		recordTime();
+
+		processInput(window);
+
+		e = scriptUpdate();
+		if (e != ERR_OK) {
+			printError(e);
+			return;
+		}
+
+		e = drawFrame();
+		if (e != ERR_OK) {
+			printError(e);
+			return;
+		}
+
+		frameCount++;
+
+		/* Print FPS every 64 frames */
+		printFPS();
+	} while (!glfwWindowShouldClose(window));
+}
+
 int main(int argc, char **argv)
 {
 	char *argError = nullptr;
@@ -78,6 +166,7 @@ int main(int argc, char **argv)
 
 	Error e = init();
 	if (e != ERR_OK) {
+		printError(e);
 		return e;
 	}
 

@@ -28,6 +28,10 @@ typedef enum Error {
 	ERR_SHADER_CREATION_FAILED,
 	ERR_WINDOW_CREATION_FAILED,
 	ERR_TEXTURE_LOADING_FAILED,
+	ERR_SCRIPT_LOADING_FAILED,
+	ERR_SCRIPT_INITIALIZATION_FAILED,
+	ERR_SCRIPT_UPDATE_FAILED,
+	ERR_SCRIPT_CLEANUP_FAILED,
 
 	/* OpenGL */
 	ERR_GLAD_INITIALIZATION_FAILED,
@@ -77,6 +81,14 @@ void printError(Error err)
 		= "window creation failed",
 		[ERR_TEXTURE_LOADING_FAILED]
 		= "texture loading failed",
+		[ERR_SCRIPT_LOADING_FAILED]
+		= "script loading failed",
+		[ERR_SCRIPT_INITIALIZATION_FAILED]
+		= "script initialization failed",
+		[ERR_SCRIPT_UPDATE_FAILED]
+		= "script update failed",
+		[ERR_SCRIPT_CLEANUP_FAILED]
+		= "script cleanup failed",
 
 		/* OpenGL */
 		[ERR_GLAD_INITIALIZATION_FAILED]

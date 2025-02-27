@@ -11,8 +11,6 @@
 #define CLAMP(X, MIN, MAX)					\
 	((X) >= (MAX) ? (MAX) : ((X) <= (MIN) ? (MIN) : (X)))
 
-#include "glad/glad.c"
-
 enum {
 	INFO_LOG_SIZE = 512,
 };
@@ -30,6 +28,7 @@ uint32_t frameCount;
 float lastFrameTimeSec;
 float currentFrameTimeSec;
 float deltaTimeSec;
+float cameraSpeed = 10.0f;
 
 static constexpr float cameraFOVMin = 0.26f;
 static constexpr float cameraFOVMax = 1.75f;
@@ -59,6 +58,27 @@ GLvoid setUniformMatrix(GLuint shaderID, const GLchar *name, mat4 value)
 			   (GLfloat*)value);
 }
 
+void processCamera(GLFWwindow *window)
+{
+	vec3 velocity = {0};
+
+	velocity[0] -= (float)(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
+	velocity[0] += (float)(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
+	velocity[2] += (float)(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
+	velocity[2] -= (float)(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS);
+
+	glm_vec3_rotate(velocity, -cameraEuler[1], GLM_YUP);
+	glm_vec3_scale(velocity, cameraSpeed * deltaTimeSec, velocity);
+	glm_vec3_add(velocity, cameraPos, cameraPos);
+}
+
+void processInput(GLFWwindow *window)
+{
+	(void)window;
+	glfwPollEvents();
+	processCamera(window);
+}
+
 void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 		 int mods)
 {
@@ -68,7 +88,6 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
 	}
-
 }
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos)
@@ -122,7 +141,8 @@ Error initWindow(void)
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	window = glfwCreateWindow(WIDTH, HEIGHT, ENGINE_NAME, nullptr, nullptr);
-	if (window == NULL) {
+
+	if (window == nullptr) {
 		glfwTerminate();
 		return ERR_WINDOW_CREATION_FAILED;
 	}
@@ -134,9 +154,9 @@ Error initWindow(void)
 
 	glViewport(0, 0, WIDTH, HEIGHT);
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-	glfwSetKeyCallback(window, keyCallback);
 	glfwSwapInterval(0);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetKeyCallback(window, keyCallback);
 	glfwSetCursorPosCallback(window, mouseCallback);  
 	glfwSetScrollCallback(window, scrollCallback);
 
@@ -395,22 +415,6 @@ Error initGraphics(void)
 	return ERR_OK;
 }
 
-Error init(void)
-{
-	Error e = ERR_OK;
-
-	e = initWindow();
-	if (e == ERR_OK) {
-		e = initGraphics();
-	}
-
-	if (e != ERR_OK) {
-		printError(e);
-	}
-
-	return e;
-}
-
 void bindTransformMatrices(void)
 {
 	mat4 projection = {0};
@@ -467,84 +471,9 @@ Error drawFrame(void)
 
 	drawScene();
 
+	glfwSwapBuffers(window);
+
 	return ERR_OK;
-}
-
-void frameCleanup(void)
-{
-}
-
-void recordTime(void)
-{
-	lastFrameTimeSec = currentFrameTimeSec;
-	currentFrameTimeSec = (float)glfwGetTime();
-	deltaTimeSec = currentFrameTimeSec - lastFrameTimeSec;
-}
-
-/* Print current FPS to stdout. Does nothing if it's been less than a second
- * since the last print. */
-void printFPS(void)
-{
-	static double lastSecondTimeSec;
-	static uint32_t lastSecondFrameCount;
-
-	double timeElapsedSec = currentFrameTimeSec - lastSecondTimeSec;
-	if (timeElapsedSec < 1.0) {
-		return;
-	}
-
-	printf("FPS: %.0f\n", (frameCount - lastSecondFrameCount)
-	       / timeElapsedSec);
-
-	lastSecondTimeSec = currentFrameTimeSec;
-	lastSecondFrameCount = frameCount;
-}
-
-void processCamera(GLFWwindow *window)
-{
-	constexpr float cameraSpeed = 10.0f;
-
-	vec3 velocity = {0};
-
-	velocity[0] -= (float)(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
-	velocity[0] += (float)(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
-	velocity[2] += (float)(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
-	velocity[2] -= (float)(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS);
-
-	glm_vec3_rotate(velocity, -cameraEuler[1], GLM_YUP);
-	glm_vec3_scale(velocity, cameraSpeed * deltaTimeSec, velocity);
-	glm_vec3_add(velocity, cameraPos, cameraPos);
-}
-
-void processInput(GLFWwindow *window)
-{
-	glfwPollEvents();
-	processCamera(window);
-}
-
-void mainLoop(void)
-{
-	Error e = ERR_OK;
-
-	do {
-		recordTime();
-
-		processInput(window);
-
-		e = drawFrame();
-		if (e != ERR_OK) {
-			printError(e);
-			return;
-		}
-
-		glfwSwapBuffers(window);
-
-		frameCount++;
-
-		/* Print FPS every 64 frames */
-		printFPS();
-	} while (!glfwWindowShouldClose(window));
-	frameCleanup();
 }
 
 void cleanupGraphics(void)
@@ -553,9 +482,8 @@ void cleanupGraphics(void)
 	glDeleteBuffers(1, &VBO);
 }
 
-void cleanup(void)
+void cleanupWindow(void)
 {
-	cleanupGraphics();
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }

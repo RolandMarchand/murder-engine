@@ -1,6 +1,7 @@
 include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY scripts DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-add_executable(${PROJECT_NAME} main.c)
+add_executable(${PROJECT_NAME} main.c glad/glad.c wren/wren.c)
 
 set_target_properties(${PROJECT_NAME}
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
