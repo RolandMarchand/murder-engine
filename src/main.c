@@ -80,14 +80,14 @@ void recordTime(void)
 void printFPS(void)
 {
 	static double lastSecondTimeSec;
-	static uint32_t lastSecondFrameCount;
+	static uint64_t lastSecondFrameCount;
 
 	double timeElapsedSec = currentFrameTimeSec - lastSecondTimeSec;
 	if (timeElapsedSec < 1.0) {
 		return;
 	}
 
-	printf("FPS: %.0f\n", (frameCount - lastSecondFrameCount)
+	printf("FPS: %.0f\n", (double)(frameCount - lastSecondFrameCount)
 	       / timeElapsedSec);
 
 	lastSecondTimeSec = currentFrameTimeSec;

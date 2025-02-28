@@ -97,6 +97,12 @@ VkSurfaceKHR surface;
 VkSwapchainKHR swapChain;
 
 bool framebufferResized;
+float lastFrameTimeSec;
+float currentFrameTimeSec;
+float deltaTimeSec;
+uint64_t frameCount;
+
+vec3 cameraPos;
 
 extern GLFWwindow *window;
 
@@ -145,6 +151,13 @@ Error initWindow(void)
 
 	return ERR_OK;
 }
+
+void processInput(GLFWwindow *window)
+{
+	(void)window;
+	glfwPollEvents();
+}
+
 
 bool checkValidationLayerSupport(void)
 {
@@ -1189,7 +1202,7 @@ Error recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 			  graphicsPipeline);
 
 	VkBuffer vertexBuffers[] = {vertexBuffer};
-	VkDeviceSize offsets[] = {};
+	VkDeviceSize offsets[] = {0};
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
 	VkViewport viewport = {};
