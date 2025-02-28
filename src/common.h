@@ -7,9 +7,9 @@
 
 /* CGLM requires a specific alignment for vec4 and mat4 to utilize SIMD */
 #define GLM_ALLOCN(T, COUNT) _Generic((T){0},			  \
-	vec4: aligned_alloc(alignof(vec4), sizeof(vec4) * COUNT), \
-	mat4: aligned_alloc(alignof(mat4), sizeof(mat4) * COUNT), \
-	default: malloc(sizeof(T) * COUNT))
+	vec4: aligned_alloc(alignof(vec4), sizeof(vec4) * (COUNT)), \
+	mat4: aligned_alloc(alignof(mat4), sizeof(mat4) * (COUNT)), \
+	default: malloc(sizeof(T) * (COUNT)))
 #define GLM_ALLOC(T) GLM_ALLOCN(T, 1)
 
 #define ALIGN(x) __attribute__((aligned(x)))
@@ -59,6 +59,23 @@ typedef enum Error {
 enum: int {
 	WIDTH = 800,
 	HEIGHT = 600,
+};
+
+enum WrenRegister: int {
+	REG_ACC = 0,
+	REG_ARG1 = 1,
+	REG_ARG2 = 2,
+	REG_ARG3 = 3,
+	REG_ARG4 = 4,
+	REG_ARG5 = 5,
+	REG_ARG6 = 6,
+	REG_ARG7 = 7,
+	REG_ARG8 = 8,
+	REG_TMP1 = 9,
+	REG_TMP2 = 10,
+	REG_TMP3 = 11,
+	REG_TMP4 = 12,
+	REG_LAST
 };
 
 /* std_ds.h string hashmap */

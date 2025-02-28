@@ -1,24 +1,17 @@
 #include <stdio.h>
-#include <string.h>
 
-#include "cglm/cglm.h"
 #include "common.h"
 #include "wren/wren.h"
 
-#define WREN_MODULE_NAME "main"
+#include "bindings.c"
 
-enum {
-	SLOT_COUNT = 8,
-};
+#define WREN_MODULE_NAME "main"
 
 WrenVM *vm;
 WrenHandle *mainClass;
 WrenHandle *initHandle;
 WrenHandle *updateHandle;
 WrenHandle *cleanupHandle;
-
-extern float deltaTimeSec;
-extern vec3 cameraPos;
 
 static const char initScriptCode[] = {
 #embed "scripts/init.wren"
@@ -48,93 +41,9 @@ void errorFn(WrenVM* vm, WrenErrorType errorType,
 	}
 }
 
-void getPlayerPosition(WrenVM* vm)
-{
-	wrenSetSlotNewList(vm, 0);
-
-	for (int i = 0; i < 3; i++) {
-		wrenSetSlotDouble(vm, 1, cameraPos[i]);
-		wrenInsertInList(vm, 0, i, 1);
-	}
-}
-
-void setPlayerPosition(WrenVM* vm)
-{
-	if (wrenGetSlotType(vm, 1) != WREN_TYPE_LIST
-	    || wrenGetListCount(vm, 1) < 3) {
-		wrenSetSlotString(vm, 0, "Cannot set a position that is not [num, num, num].");
-		wrenAbortFiber(vm, 0);
-		return;
-	}
-
-	wrenGetListElement(vm, 1, 0, 2);
-	wrenGetListElement(vm, 1, 1, 3);
-	wrenGetListElement(vm, 1, 2, 4);
-
-	if (wrenGetSlotType(vm, 2) != WREN_TYPE_NUM
-	    || wrenGetSlotType(vm, 3) != WREN_TYPE_NUM
-	    || wrenGetSlotType(vm, 4) != WREN_TYPE_NUM) {
-		wrenSetSlotString(vm, 0, "Cannot set a position that is not [num, num, num].");
-		wrenAbortFiber(vm, 0);
-		return;
-	}
-
-	cameraPos[0] = (float)wrenGetSlotDouble(vm, 2);
-	cameraPos[1] = (float)wrenGetSlotDouble(vm, 3);
-	cameraPos[2] = (float)wrenGetSlotDouble(vm, 4);
-}
-
-void playerAllocate(WrenVM *vm)
-{
-	wrenSetSlotNewForeign(vm, 0, 0, 0);
-}
-
-void playerFinalize(void *data)
-{
-	(void)data;
-}
-
-WrenForeignClassMethods bindForeignClass(
-    WrenVM* vm, const char* module, const char* className)
-{
-	(void)vm;
-	(void)module;
-	(void)className;
-
-	WrenForeignClassMethods methods = {};
-
-	if (strcmp(className, "Player") == 0) {
-		methods.allocate = playerAllocate;
-		methods.finalize = playerFinalize;
-	}
-
-	return methods;
-}
-
-WrenForeignMethodFn bindForeignMethod(WrenVM* vm, const char* module,
-    const char* className, bool isStatic, const char* signature)
-{
-	(void)vm;
-	(void)module;
-
-	if (strcmp(className, "Player") != 0) {
-		return nullptr;
-	}
-
-	if (isStatic && strcmp(signature, "getPos") == 0) {
-		return getPlayerPosition;
-	}
-
-	if (isStatic && strcmp(signature, "setPos=(_)") == 0) {
-		return setPlayerPosition;
-	}
-
-	return nullptr;
-}
-
 Error scriptInit(void)
 {
-	wrenEnsureSlots(vm, SLOT_COUNT);
+	wrenEnsureSlots(vm, REG_LAST);
 
 	wrenGetVariable(vm, WREN_MODULE_NAME, "Main", 0);
 	mainClass = wrenGetSlotHandle(vm, 0);
