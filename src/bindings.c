@@ -10,7 +10,7 @@
 	wrenSetSlotNewForeign((vm), REG_ACC, REG_ACC, 0)
 
 extern float deltaTimeSec;
-extern vec3 cameraPos;
+extern vec3 cameraPosition;
 
 void bindPlayerAllocate(WrenVM *vm)
 {
@@ -27,7 +27,7 @@ void bindPlayerGetPos(WrenVM* vm)
 	wrenSetSlotNewList(vm, REG_ACC);
 
 	for (int i = 0; i < 3; i++) {
-		wrenSetSlotDouble(vm, REG_TMP1, cameraPos[i]);
+		wrenSetSlotDouble(vm, REG_TMP1, cameraPosition[i]);
 		wrenInsertInList(vm, REG_ACC, i, REG_TMP1);
 	}
 }
@@ -54,9 +54,9 @@ void bindPlayerSetPos(WrenVM* vm)
 		return;
 	}
 
-	cameraPos[0] = (float)wrenGetSlotDouble(vm, REG_TMP1);
-	cameraPos[1] = (float)wrenGetSlotDouble(vm, REG_TMP2);
-	cameraPos[2] = (float)wrenGetSlotDouble(vm, REG_TMP3);
+	cameraPosition[0] = (float)wrenGetSlotDouble(vm, REG_TMP1);
+	cameraPosition[1] = (float)wrenGetSlotDouble(vm, REG_TMP2);
+	cameraPosition[2] = (float)wrenGetSlotDouble(vm, REG_TMP3);
 }
 
 WrenForeignMethodFn bindPlayer(bool isStatic, const char* signature)

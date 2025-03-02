@@ -22,6 +22,7 @@ GLuint shaderProgram;
 GLuint lightShaderProgram;
 GLuint texture0;
 GLuint texture1;
+vec3 lightPosition = {0.0f, 0.0f, -10.0f};
 
 uint32_t frameCount;
 float lastFrameTimeSec;
@@ -34,7 +35,7 @@ static constexpr float cameraFOVMax = 1.75f;
 
 float cameraFOV = GLM_PI / 2.0f;
 vec3 cameraEuler;
-vec3 cameraPos = {0.0f, 0.0f, 3.0f};
+vec3 cameraPosition = {0.0f, 0.0f, 3.0f};
 
 void setUniformBool(GLuint shaderID, const GLchar *name, GLboolean value)
 {
@@ -53,7 +54,7 @@ void setUniformFloat(GLuint shaderID, const GLchar *name, GLfloat value)
 
 void setUniformVec3(GLuint shaderID, const GLchar *name, vec3 value)
 {
-	glUniform3fv(glGetUniformLocation(shaderID, name), 3, value);
+	glUniform3fv(glGetUniformLocation(shaderID, name), 1, value);
 }
 
 void setUniformMatrix(GLuint shaderID, const GLchar *name, mat4 value)
@@ -68,12 +69,14 @@ void processCamera(GLFWwindow *window)
 
 	velocity[0] -= (float)(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
 	velocity[0] += (float)(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
+	velocity[1] += (float)(glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS);
+	velocity[1] -= (float)(glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS);
 	velocity[2] += (float)(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS);
 	velocity[2] -= (float)(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS);
 
 	glm_vec3_rotate(velocity, -cameraEuler[1], GLM_YUP);
 	glm_vec3_scale(velocity, cameraSpeed * deltaTimeSec, velocity);
-	glm_vec3_add(velocity, cameraPos, cameraPos);
+	glm_vec3_add(velocity, cameraPosition, cameraPosition);
 }
 
 void processInput(GLFWwindow *window)
@@ -279,14 +282,19 @@ void cubeVertexBufferInit(GLuint pVBO)
 	glBindBuffer(GL_ARRAY_BUFFER, pVBO);
 
 	/* Set position attribute. */
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
 			      nullptr);
 	glEnableVertexAttribArray(0);
 
 	/* Set texture attribute. */
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
 			      (void*)(3 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(1);
+
+	/* Set normals. */
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
+			      (void*)(5 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(2);
 }
 
 void lightVertexBufferInit(GLuint pVBO)
@@ -295,59 +303,55 @@ void lightVertexBufferInit(GLuint pVBO)
 	glBindVertexArray(lightVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, pVBO);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat),
 			      nullptr);
 	glEnableVertexAttribArray(0);
-
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
-			      (void*)(3 * sizeof(GLfloat)));
-	glEnableVertexAttribArray(1);
 }
 
 void vertexBuffersInit(void)
 {
 	const GLfloat vertices[] = {
-		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-		0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-		-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-
-		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		-0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-
-		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-		-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+		-0.5f, -0.5f, -0.5f,	0.0f, 0.0f,	0.0f, 0.0f, -1.0f,
+		0.5f, -0.5f, -0.5f,	1.0f, 0.0f,	0.0f, 0.0f, -1.0f,
+		0.5f,  0.5f, -0.5f,	1.0f, 1.0f,	0.0f, 0.0f, -1.0f,
+		0.5f,  0.5f, -0.5f,	1.0f, 1.0f,	0.0f, 0.0f, -1.0f,
+		-0.5f,  0.5f, -0.5f,	0.0f, 1.0f,	0.0f, 0.0f, -1.0f,
+		-0.5f, -0.5f, -0.5f,	0.0f, 0.0f,	0.0f, 0.0f, -1.0f,
+	
+		-0.5f, -0.5f,  0.5f,	0.0f, 0.0f,	0.0f, 0.0f, 1.0f,
+		0.5f, -0.5f,  0.5f,	1.0f, 0.0f,	0.0f, 0.0f, 1.0f,
+		0.5f,  0.5f,  0.5f,	1.0f, 1.0f,	0.0f, 0.0f, 1.0f,
+		0.5f,  0.5f,  0.5f,	1.0f, 1.0f,	0.0f, 0.0f, 1.0f,
+		-0.5f,  0.5f,  0.5f,	0.0f, 1.0f,	0.0f, 0.0f, 1.0f,
+		-0.5f, -0.5f,  0.5f,	0.0f, 0.0f,	0.0f, 0.0f, 1.0f,
+	
+		-0.5f,  0.5f,  0.5f,	1.0f, 0.0f,	-1.0f, 0.0f, 0.0f,
+		-0.5f,  0.5f, -0.5f,	1.0f, 1.0f,	-1.0f, 0.0f, 0.0f,
+		-0.5f, -0.5f, -0.5f,	0.0f, 1.0f,	-1.0f, 0.0f, 0.0f,
+		-0.5f, -0.5f, -0.5f,	0.0f, 1.0f,	-1.0f, 0.0f, 0.0f,
+		-0.5f, -0.5f,  0.5f,	0.0f, 0.0f,	-1.0f, 0.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,	1.0f, 0.0f,	-1.0f, 0.0f, 0.0f,
+	
+		0.5f,  0.5f,  0.5f,	1.0f, 0.0f,	1.0f, 0.0f, 0.0f,
+		0.5f,  0.5f, -0.5f,	1.0f, 1.0f,	1.0f, 0.0f, 0.0f,
+		0.5f, -0.5f, -0.5f,	0.0f, 1.0f,	1.0f, 0.0f, 0.0f,
+		0.5f, -0.5f, -0.5f,	0.0f, 1.0f,	1.0f, 0.0f, 0.0f,
+		0.5f, -0.5f,  0.5f,	0.0f, 0.0f,	1.0f, 0.0f, 0.0f,
+		0.5f,  0.5f,  0.5f,	1.0f, 0.0f,	1.0f, 0.0f, 0.0f,
+	
+		-0.5f, -0.5f, -0.5f,	0.0f, 1.0f,	0.0f, -1.0f, 0.0f,
+		0.5f, -0.5f, -0.5f,	1.0f, 1.0f,	0.0f, -1.0f, 0.0f,
+		0.5f, -0.5f,  0.5f,	1.0f, 0.0f,	0.0f, -1.0f, 0.0f,
+		0.5f, -0.5f,  0.5f,	1.0f, 0.0f,	0.0f, -1.0f, 0.0f,
+		-0.5f, -0.5f,  0.5f,	0.0f, 0.0f,	0.0f, -1.0f, 0.0f,
+		-0.5f, -0.5f, -0.5f,	0.0f, 1.0f,	0.0f, -1.0f, 0.0f,
+	
+		-0.5f,  0.5f, -0.5f,	0.0f, 1.0f,	0.0f, 1.0f, 0.0f,
+		0.5f,  0.5f, -0.5f,	1.0f, 1.0f,	0.0f, 1.0f, 0.0f,
+		0.5f,  0.5f,  0.5f,	1.0f, 0.0f,	0.0f, 1.0f, 0.0f,
+		0.5f,  0.5f,  0.5f,	1.0f, 0.0f,	0.0f, 1.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,	0.0f, 0.0f,	0.0f, 1.0f, 0.0f,
+		-0.5f,  0.5f, -0.5f,	0.0f, 1.0f,	0.0f, 1.0f, 0.0f,
 	};
 
 	bufferMeshData(vertices, sizeof(vertices));
@@ -404,6 +408,7 @@ Error textureInit(GLuint shaderID)
 	glUseProgram(shaderID);
 	setUniformInt(shaderID, "laz", 0);
 	setUniformInt(shaderID, "blue", 1);
+	setUniformVec3(shaderID, "lightColor", (vec3){1.0f, 0.58f, 0.79f});
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture0);
@@ -415,6 +420,8 @@ Error textureInit(GLuint shaderID)
 
 Error lightInit(GLuint shaderID)
 {
+	glUseProgram(shaderID);
+
 	vec3 light = {1.0f, 1.0f, 1.0f};
 	setUniformVec3(shaderID, "lightColor", light);
 
@@ -465,7 +472,7 @@ Error graphicsInit(void)
 		return e;
 	}
 
-	e = lightInit(shaderProgram);
+	e = lightInit(lightShaderProgram);
 	if (e != ERR_OK) {
 		return e;
 	}
@@ -479,7 +486,7 @@ void bindTransformMatrices(void)
 {
 	glUseProgram(shaderProgram);
 
-	mat4 projection = {};
+	mat4 projection = GLM_MAT4_IDENTITY_INIT;
 	glm_perspective(cameraFOV, (float)WIDTH / (float)HEIGHT, 0.1f,
 			100.0f, projection);
 
@@ -490,9 +497,9 @@ void drawCamera(void)
 {
 	glUseProgram(shaderProgram);
 
-	mat4 view = {};
+	mat4 view = GLM_MAT4_IDENTITY_INIT;
 	glm_euler(cameraEuler, view);
-	glm_translate_to(view, cameraPos, view);
+	glm_translate_to(view, cameraPosition, view);
 	setUniformMatrix(shaderProgram, "view", view);
 }
 
@@ -517,10 +524,12 @@ void drawScene(void)
 	for (GLuint i = 0; i < 10; i++) {
 		mat4 model = GLM_MAT4_IDENTITY_INIT;
 		glm_translate(model, cubePositions[i]);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		GLfloat angle = (float)glfwGetTime() * ((GLfloat)i + 1);
+		GLfloat angle = (float)glfwGetTime() * ((GLfloat)i + 10);
 		glm_rotate(model, glm_rad(angle), (vec3){1.0f, 0.3f, 0.5f});
 		setUniformMatrix(shaderProgram, "model", model);
+		setUniformVec3(shaderProgram, "lightPos", lightPosition);
+		setUniformVec3(shaderProgram, "viewPos", cameraPosition);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 }
 
@@ -532,11 +541,20 @@ void drawLight(void)
 	setUniformVec3(lightShaderProgram, "lightColor",
 		       (vec3){1.0f, 1.0f, 1.0f});
 
-	vec3 lightPosition = {0.0f, 0.0f, -10.0f};
 	mat4 model = GLM_MAT4_IDENTITY_INIT;
 	glm_translate(model, lightPosition);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 	setUniformMatrix(shaderProgram, "model", model);
+
+	mat4 view = GLM_MAT4_IDENTITY_INIT;
+	glm_euler(cameraEuler, view);
+	glm_translate_to(view, cameraPosition, view);
+	setUniformMatrix(shaderProgram, "view", view);
+
+	mat4 projection = GLM_MAT4_IDENTITY_INIT;
+	glm_perspective(cameraFOV, (float)WIDTH / (float)HEIGHT, 0.1f,
+			100.0f, projection);
+	setUniformMatrix(shaderProgram, "projection", projection);
 }
 
 Error drawFrame(void)
@@ -550,7 +568,7 @@ Error drawFrame(void)
 
 	drawScene();
 
-	/* drawLight(); */
+	drawLight();
 
 	glfwSwapBuffers(window);
 

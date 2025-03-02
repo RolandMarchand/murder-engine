@@ -27,9 +27,9 @@ class Main {
 	// Ran every frame
 	static update(delta) {
 		// Test stuff
-		var pos = Player.getPos
-		pos[2] = pos[2] + delta
-		Player.setPos = pos
+		// var pos = Player.getPos
+		// pos[1] = pos[1] - delta
+		// Player.setPos = pos
 		System.print("delta: %(delta)")
 		System.print(Player.getPos)
 	}
