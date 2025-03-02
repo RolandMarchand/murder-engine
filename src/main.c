@@ -98,12 +98,12 @@ Error init(void)
 {
 	Error e = ERR_OK;
 
-	e = initWindow();
+	e = windowInit();
 	if (e != ERR_OK) {
 		return e;
 	}
 	
-	e = initGraphics();
+	e = graphicsInit();
 	if (e != ERR_OK) {
 		return e;
 	}

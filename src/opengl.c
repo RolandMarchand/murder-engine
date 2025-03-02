@@ -1,5 +1,3 @@
-#include <math.h>
-
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include "cglm/cglm.h"
@@ -18,9 +16,10 @@ enum {
 GLchar infoLog[INFO_LOG_SIZE];
 GLFWwindow *window;
 GLuint VBO;
-GLuint VAO;
-GLuint EBO;
+GLuint cubeVAO;
+GLuint lightVAO;
 GLuint shaderProgram;
+GLuint lightShaderProgram;
 GLuint texture0;
 GLuint texture1;
 
@@ -33,26 +32,31 @@ float cameraSpeed = 10.0f;
 static constexpr float cameraFOVMin = 0.26f;
 static constexpr float cameraFOVMax = 1.75f;
 
-float cameraFOV = M_PI / 2.0f;
+float cameraFOV = GLM_PI / 2.0f;
 vec3 cameraEuler;
 vec3 cameraPos = {0.0f, 0.0f, 3.0f};
 
-GLvoid setUniformBool(GLuint shaderID, const GLchar *name, GLboolean value)
+void setUniformBool(GLuint shaderID, const GLchar *name, GLboolean value)
 {
 	glUniform1i(glGetUniformLocation(shaderID, name), (GLint)value);
 }
 
-GLvoid setUniformInt(GLuint shaderID, const GLchar *name, GLint value)
+void setUniformInt(GLuint shaderID, const GLchar *name, GLint value)
 {
 	glUniform1i(glGetUniformLocation(shaderID, name), value);
 }
 
-GLvoid setUniformFloat(GLuint shaderID, const GLchar *name, GLfloat value)
+void setUniformFloat(GLuint shaderID, const GLchar *name, GLfloat value)
 {
 	glUniform1f(glGetUniformLocation(shaderID, name), value);
 }
 
-GLvoid setUniformMatrix(GLuint shaderID, const GLchar *name, mat4 value)
+void setUniformVec3(GLuint shaderID, const GLchar *name, vec3 value)
+{
+	glUniform3fv(glGetUniformLocation(shaderID, name), 3, value);
+}
+
+void setUniformMatrix(GLuint shaderID, const GLchar *name, mat4 value)
 {
 	glUniformMatrix4fv(glGetUniformLocation(shaderID, name), 1, GL_FALSE,
 			   (GLfloat*)value);
@@ -115,7 +119,7 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos)
 	cameraEuler[1] += xoffset;
 
 	cameraEuler[0] =
-		CLAMP(cameraEuler[0], -(float)M_PI / 3.0f, (float)M_PI / 3.0f);
+		CLAMP(cameraEuler[0], -(float)GLM_PI / 3.0f, (float)GLM_PI / 3.0f);
 }
 
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
@@ -133,7 +137,7 @@ void framebufferResizeCallback(GLFWwindow *window, int width, int height)
 	glViewport(0, 0, width, height);
 }
 
-Error initWindow(void)
+Error windowInit(void)
 {
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -259,9 +263,50 @@ Error compileShaderProgram(GLuint *shaderIDOut,
 	return ERR_OK;
 }
 
-GLvoid vertexBufferInit(void)
+/* Buffers data to VBO global. */
+void bufferMeshData(const GLfloat *vertices, GLsizeiptr length)
 {
-	static const GLfloat vertices[] = {
+	glGenBuffers(1, &VBO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, length * (GLsizeiptr)sizeof(GLfloat),
+		     vertices, GL_STATIC_DRAW);
+}
+
+void cubeVertexBufferInit(GLuint pVBO)
+{
+	glGenVertexArrays(1, &cubeVAO);
+	glBindVertexArray(cubeVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, pVBO);
+
+	/* Set position attribute. */
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
+			      nullptr);
+	glEnableVertexAttribArray(0);
+
+	/* Set texture attribute. */
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
+			      (void*)(3 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(1);
+}
+
+void lightVertexBufferInit(GLuint pVBO)
+{
+	glGenVertexArrays(1, &lightVAO);
+	glBindVertexArray(lightVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, pVBO);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
+			      nullptr);
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
+			      (void*)(3 * sizeof(GLfloat)));
+	glEnableVertexAttribArray(1);
+}
+
+void vertexBuffersInit(void)
+{
+	const GLfloat vertices[] = {
 		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
 		0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
 		0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
@@ -305,27 +350,9 @@ GLvoid vertexBufferInit(void)
 		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 	};
 
-	/* VAO */
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-
-	/* VBO */
-	glGenBuffers(1, &VBO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
-		     GL_STATIC_DRAW);
-
-	/* Set position attribute. */
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
-			      nullptr);
-	glEnableVertexAttribArray(0);
-
-	/* Set texture attribute. */
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat),
-			      (GLvoid*)(3 * sizeof(GLfloat)));
-	glEnableVertexAttribArray(1);
-
-	glBindVertexArray(VAO);
+	bufferMeshData(vertices, sizeof(vertices));
+	cubeVertexBufferInit(VBO);
+	lightVertexBufferInit(VBO);
 }
 
 Error bindTexture(GLuint *idOut, const char *path)
@@ -386,14 +413,26 @@ Error textureInit(GLuint shaderID)
 	return ERR_OK;
 }
 
-Error initGraphics(void)
+Error lightInit(GLuint shaderID)
 {
-	static const GLchar vertexShaderSource[] = {
+	vec3 light = {1.0f, 1.0f, 1.0f};
+	setUniformVec3(shaderID, "lightColor", light);
+
+	return ERR_OK;
+}
+
+Error compileShaders(void)
+{
+	const GLchar vertexShaderSource[] = {
 #embed "shaders/gl-vertex.glsl"
 		, '\0'
 	};
-	static const GLchar fragmentShaderSource[] = {
+	const GLchar fragmentShaderSource[] = {
 #embed "shaders/gl-fragment.glsl"
+		, '\0'
+	};
+	const GLchar lightShaderSource[] = {
+#embed "shaders/gl-light.glsl"
 		, '\0'
 	};
 
@@ -403,9 +442,30 @@ Error initGraphics(void)
 		return e;
 	}
 
-	vertexBufferInit();
+	e = compileShaderProgram(&lightShaderProgram, vertexShaderSource,
+				       lightShaderSource);
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	return ERR_OK;
+}
+
+Error graphicsInit(void)
+{
+	Error e = compileShaders();
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	vertexBuffersInit();
 
 	e = textureInit(shaderProgram);
+	if (e != ERR_OK) {
+		return e;
+	}
+
+	e = lightInit(shaderProgram);
 	if (e != ERR_OK) {
 		return e;
 	}
@@ -417,6 +477,8 @@ Error initGraphics(void)
 
 void bindTransformMatrices(void)
 {
+	glUseProgram(shaderProgram);
+
 	mat4 projection = {};
 	glm_perspective(cameraFOV, (float)WIDTH / (float)HEIGHT, 0.1f,
 			100.0f, projection);
@@ -426,6 +488,8 @@ void bindTransformMatrices(void)
 
 void drawCamera(void)
 {
+	glUseProgram(shaderProgram);
+
 	mat4 view = {};
 	glm_euler(cameraEuler, view);
 	glm_translate_to(view, cameraPos, view);
@@ -434,7 +498,10 @@ void drawCamera(void)
 
 void drawScene(void)
 {
-	static vec3 cubePositions[] = {
+	glUseProgram(shaderProgram);
+	glBindVertexArray(cubeVAO);
+
+	vec3 cubePositions[] = {
 		{ 0.0f,  0.0f,  0.0f},
 		{ 2.0f,  5.0f, -15.0f},
 		{-1.5f, -2.2f, -2.5f},
@@ -457,19 +524,33 @@ void drawScene(void)
 	}
 }
 
+void drawLight(void)
+{
+	glBindVertexArray(lightVAO);
+	glUseProgram(lightShaderProgram);
+
+	setUniformVec3(lightShaderProgram, "lightColor",
+		       (vec3){1.0f, 1.0f, 1.0f});
+
+	vec3 lightPosition = {0.0f, 0.0f, -10.0f};
+	mat4 model = GLM_MAT4_IDENTITY_INIT;
+	glm_translate(model, lightPosition);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	setUniformMatrix(shaderProgram, "model", model);
+}
+
 Error drawFrame(void)
 {
 	glClearColor(0.28f, 0.16f, 0.22f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glUseProgram(shaderProgram);
-	glBindVertexArray(VAO);
 
 	bindTransformMatrices();
 
 	drawCamera();
 
 	drawScene();
+
+	/* drawLight(); */
 
 	glfwSwapBuffers(window);
 
@@ -478,7 +559,8 @@ Error drawFrame(void)
 
 void cleanupGraphics(void)
 {
-	glDeleteVertexArrays(1, &VAO);
+	glDeleteVertexArrays(1, &cubeVAO);
+	glDeleteVertexArrays(1, &lightVAO);
 	glDeleteBuffers(1, &VBO);
 }
 

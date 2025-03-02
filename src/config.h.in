@@ -8,3 +8,8 @@
 #define ENGINE_NAME "Laz's Engine"
 
 #define RESOURCE_PATH "@RESOURCE_PATH@"
+
+/* Enable debug for Wren. */
+#ifdef NDEBUG
+#define DEBUG
+#endif

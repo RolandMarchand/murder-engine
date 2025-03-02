@@ -132,7 +132,7 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action,
 	}
 }
 
-Error initWindow(void)
+Error windowInit(void)
 {
 	if (!glfwInit()) {
 		return ERR_WINDOW_CREATION_FAILED;
@@ -1348,7 +1348,7 @@ void cleanupGraphics(void)
 	arrfree(inFlightFences);
 }
 
-Error initGraphics(void)
+Error graphicsInit(void)
 {
 	if (!glfwVulkanSupported()) {
 		return 3;
