@@ -521,13 +521,28 @@ void drawScene(void)
 		{-1.3f,  1.0f, -1.5f},
 	};
 
+	setUniformVec3(shaderProgram, "material.ambient",
+		       (vec3){1.0f, 1.0f, 1.0f});
+	setUniformVec3(shaderProgram, "material.diffuse",
+		       (vec3){1.0f, 1.0f, 1.0f});
+	setUniformVec3(shaderProgram, "material.specular",
+		       (vec3){1.0f, 1.0f, 1.0f});
+	setUniformFloat(shaderProgram, "material.shininess", 32.0f);
+
+	setUniformVec3(shaderProgram, "light.ambient",
+		       (vec3){0.5f, 0.5f, 0.5f});
+	setUniformVec3(shaderProgram, "light.diffuse",
+		       (vec3){0.8f, 0.8f, 0.8f});
+	setUniformVec3(shaderProgram, "light.specular",
+		       (vec3){1.0f, 1.0f, 1.0f});
+
 	for (GLuint i = 0; i < 10; i++) {
 		mat4 model = GLM_MAT4_IDENTITY_INIT;
 		glm_translate(model, cubePositions[i]);
 		GLfloat angle = (float)glfwGetTime() * ((GLfloat)i + 10);
 		glm_rotate(model, glm_rad(angle), (vec3){1.0f, 0.3f, 0.5f});
 		setUniformMatrix(shaderProgram, "model", model);
-		setUniformVec3(shaderProgram, "lightPos", lightPosition);
+		setUniformVec3(shaderProgram, "light.position", lightPosition);
 		setUniformVec3(shaderProgram, "viewPos", cameraPosition);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
@@ -537,9 +552,6 @@ void drawLight(void)
 {
 	glBindVertexArray(lightVAO);
 	glUseProgram(lightShaderProgram);
-
-	setUniformVec3(lightShaderProgram, "lightColor",
-		       (vec3){1.0f, 1.0f, 1.0f});
 
 	mat4 model = GLM_MAT4_IDENTITY_INIT;
 	glm_translate(model, lightPosition);
