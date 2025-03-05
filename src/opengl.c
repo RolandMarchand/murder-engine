@@ -395,20 +395,20 @@ Error textureInit(GLuint shaderID)
 {
 	stbi_set_flip_vertically_on_load(true);
 
-	Error e = bindTexture(&texture0, RESOURCE_PATH "/laz.png");
+	Error e = bindTexture(&texture0, RESOURCE_PATH "/crate.png");
 	if (e != ERR_OK) {
 		return e;
 	}
 
-	e = bindTexture(&texture1, RESOURCE_PATH "/blue.png");
+	e = bindTexture(&texture1, RESOURCE_PATH "/crate-specular.png");
 	if (e != ERR_OK) {
 		return e;
 	}
 
 	glUseProgram(shaderID);
-	setUniformInt(shaderID, "laz", 0);
-	setUniformInt(shaderID, "blue", 1);
-	setUniformVec3(shaderID, "lightColor", (vec3){1.0f, 0.58f, 0.79f});
+	setUniformInt(shaderID, "material.diffuse", 0);
+	glUseProgram(shaderID);
+	setUniformInt(shaderID, "material.specular", 1);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture0);
@@ -521,10 +521,6 @@ void drawScene(void)
 		{-1.3f,  1.0f, -1.5f},
 	};
 
-	setUniformVec3(shaderProgram, "material.ambient",
-		       (vec3){1.0f, 1.0f, 1.0f});
-	setUniformVec3(shaderProgram, "material.diffuse",
-		       (vec3){1.0f, 1.0f, 1.0f});
 	setUniformVec3(shaderProgram, "material.specular",
 		       (vec3){1.0f, 1.0f, 1.0f});
 	setUniformFloat(shaderProgram, "material.shininess", 32.0f);
