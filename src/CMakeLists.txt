@@ -1,5 +1,7 @@
+add_subdirectory(shaders)
+add_subdirectory(scripts)
+
 include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY scripts DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(${PROJECT_NAME} main.c glad/glad.c wren/wren.c)
 
@@ -20,7 +22,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   OpenGL::GL)
 endif()
 
-add_subdirectory(shaders)
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
