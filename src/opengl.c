@@ -63,6 +63,21 @@ void setUniformMatrix(GLuint shaderID, const GLchar *name, mat4 value)
 			   (GLfloat*)value);
 }
 
+void getCameraFront(vec3 out)
+{
+	out[0] = 0.0f;
+	out[1] = 0.0f;
+	out[2] = 1.0f;
+
+	glm_vec3_rotate(out, cameraEuler[0], GLM_XUP);
+	glm_vec3_rotate(out, cameraEuler[1], GLM_YUP);
+	glm_vec3_rotate(out, cameraEuler[2], GLM_ZUP);
+
+	out[2] = -out[2];
+
+	glm_normalize(out);
+}
+
 void processCamera(GLFWwindow *window)
 {
 	vec3 velocity = {};
@@ -407,7 +422,6 @@ Error textureInit(GLuint shaderID)
 
 	glUseProgram(shaderID);
 	setUniformInt(shaderID, "material.diffuse", 0);
-	glUseProgram(shaderID);
 	setUniformInt(shaderID, "material.specular", 1);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -525,26 +539,18 @@ void drawScene(void)
 		       (vec3){1.0f, 1.0f, 1.0f});
 	setUniformFloat(shaderProgram, "material.shininess", 32.0f);
 
-	setUniformVec3(shaderProgram, "light.ambient",
-		       (vec3){0.5f, 0.5f, 0.5f});
-	setUniformVec3(shaderProgram, "light.diffuse",
-		       (vec3){0.8f, 0.8f, 0.8f});
-	setUniformVec3(shaderProgram, "light.specular",
-		       (vec3){1.0f, 1.0f, 1.0f});
-
 	for (GLuint i = 0; i < 10; i++) {
 		mat4 model = GLM_MAT4_IDENTITY_INIT;
 		glm_translate(model, cubePositions[i]);
 		GLfloat angle = (float)glfwGetTime() * ((GLfloat)i + 10);
 		glm_rotate(model, glm_rad(angle), (vec3){1.0f, 0.3f, 0.5f});
 		setUniformMatrix(shaderProgram, "model", model);
-		setUniformVec3(shaderProgram, "light.position", lightPosition);
 		setUniformVec3(shaderProgram, "viewPos", cameraPosition);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
 }
 
-void drawLight(void)
+void drawLightCube(void)
 {
 	glBindVertexArray(lightVAO);
 	glUseProgram(lightShaderProgram);
@@ -552,17 +558,79 @@ void drawLight(void)
 	mat4 model = GLM_MAT4_IDENTITY_INIT;
 	glm_translate(model, lightPosition);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
-	setUniformMatrix(shaderProgram, "model", model);
+	setUniformMatrix(lightShaderProgram, "model", model);
 
 	mat4 view = GLM_MAT4_IDENTITY_INIT;
 	glm_euler(cameraEuler, view);
 	glm_translate_to(view, cameraPosition, view);
-	setUniformMatrix(shaderProgram, "view", view);
+	setUniformMatrix(lightShaderProgram, "view", view);
 
 	mat4 projection = GLM_MAT4_IDENTITY_INIT;
 	glm_perspective(cameraFOV, (float)WIDTH / (float)HEIGHT, 0.1f,
 			100.0f, projection);
-	setUniformMatrix(shaderProgram, "projection", projection);
+	setUniformMatrix(lightShaderProgram, "projection", projection);
+}
+
+void drawDirectionalLight()
+{
+	glUseProgram(shaderProgram);
+	setUniformVec3(shaderProgram, "sunlight.color.ambient",
+		       (vec3){0.5f, 0.0f, 0.0f});
+	setUniformVec3(shaderProgram, "sunlight.color.diffuse",
+		       (vec3){0.8f, 0.0f, 0.0f});
+	setUniformVec3(shaderProgram, "sunlight.color.specular",
+		       (vec3){1.0f, 0.0f, 0.0f});
+
+	setUniformVec3(shaderProgram, "sunlight.dir", lightPosition);
+}
+
+void drawLightPoint()
+{
+	glUseProgram(shaderProgram);
+	setUniformVec3(shaderProgram, "lightPoint.color.ambient",
+		       (vec3){0.0f, 0.5f, 0.5f});
+	setUniformVec3(shaderProgram, "lightPoint.color.diffuse",
+		       (vec3){0.0f, 0.8f, 0.8f});
+	setUniformVec3(shaderProgram, "lightPoint.color.specular",
+		       (vec3){0.0f, 1.0f, 1.0f});
+
+	setUniformVec3(shaderProgram, "lightPoint.position", lightPosition);
+
+	setUniformFloat(shaderProgram, "lightPoint.falloff.constant", 1.0f);
+	setUniformFloat(shaderProgram, "lightPoint.falloff.linear", 0.045f);
+	setUniformFloat(shaderProgram, "lightPoint.falloff.quad", 0.0075f);
+}
+
+void drawSpotlight()
+{
+	glUseProgram(shaderProgram);
+	setUniformVec3(shaderProgram, "spotlight.color.ambient",
+		       (vec3){0.15f, 0.15f, 0.5f});
+	setUniformVec3(shaderProgram, "spotlight.color.diffuse",
+		       (vec3){0.24f, 0.24f, 0.8f});
+	setUniformVec3(shaderProgram, "spotlight.color.specular",
+		       (vec3){0.3f, 0.3f, 1.0f});
+
+	setUniformVec3(shaderProgram, "spotlight.position", cameraPosition);
+	setUniformFloat(shaderProgram, "spotlight.cutoff", cosf(glm_rad(12.5f)));
+	setUniformFloat(shaderProgram, "spotlight.outerCutoff",
+			cosf(glm_rad(17.5f)));
+
+	setUniformFloat(shaderProgram, "spotlight.falloff.constant", 1.0f);
+	setUniformFloat(shaderProgram, "spotlight.falloff.linear", 0.045f);
+	setUniformFloat(shaderProgram, "spotlight.falloff.quad", 0.0075f);
+
+	vec3 dir = {};
+	getCameraFront(dir);
+	setUniformVec3(shaderProgram, "spotlight.dir", dir);
+}
+
+void drawLight(void)
+{
+	drawLightCube();
+	drawDirectionalLight();
+	drawLightPoint();
+	drawSpotlight();
 }
 
 Error drawFrame(void)
@@ -574,9 +642,9 @@ Error drawFrame(void)
 
 	drawCamera();
 
-	drawScene();
-
 	drawLight();
+
+	drawScene();
 
 	glfwSwapBuffers(window);
 
