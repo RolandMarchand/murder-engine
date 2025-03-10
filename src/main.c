@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "arena_string.h"
 #include "common.h"
 #include "stb_ds.h"
 
@@ -120,6 +121,7 @@ void cleanup(void)
 {
 	cleanupGraphics();
 	cleanupWindow();
+	arenaFree();
 
 	Error e = scriptUnload();
 	if (e != ERR_OK) {
